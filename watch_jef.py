@@ -1,35 +1,77 @@
-name: JEF NEWS WATCHER
+import json
+import os
+import requests
+from bs4 import BeautifulSoup
 
-on:
-  schedule:
-    - cron: "*/15 * * * *"
-  workflow_dispatch:
+NEWS_URL = "https://jefunited.co.jp/news/list"
+SEEN_FILE = "seen.json"
 
-jobs:
-  check:
+html = requests.get(
+    NEWS_URL,
+    headers={"User-Agent": "Mozilla/5.0"}
+).text
 
-    runs-on: ubuntu-latest
+soup = BeautifulSoup(html, "html.parser")
 
-    permissions:
-      contents: write
+articles = []
 
-    steps:
+for a in soup.find_all("a", href=True):
+    href = a["href"]
 
-      - uses: actions/checkout@v4
+    if "/news/detail/" in href:
+        if href.startswith("/"):
+            href = "https://jefunited.co.jp" + href
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+        title = a.get_text(" ", strip=True)
 
-      - run: pip install requests beautifulsoup4
+        if title:
+            articles.append({
+                "url": href,
+                "title": title
+            })
 
-      - run: python watch_jef.py
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+# URL重複除去
+unique = {}
+for a in articles:
+    unique[a["url"]] = a
 
-      - run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add seen.json
-          git diff --cached --quiet || git commit -m "update seen"
-          git push
+articles = list(unique.values())[:50]
+
+
+try:
+    with open(SEEN_FILE, encoding="utf-8") as f:
+        seen = set(json.load(f))
+except:
+    seen = set()
+
+
+new_articles = [
+    a for a in articles
+    if a["url"] not in seen
+]
+
+
+if new_articles:
+    message = "\n\n".join(
+        [
+            f"【ジェフNEWS更新】\n{a['title']}\n{a['url']}"
+            for a in reversed(new_articles)
+        ]
+    )
+
+    requests.post(
+        os.environ["DISCORD_WEBHOOK"],
+        json={"content": message}
+    )
+
+    seen.update(
+        a["url"] for a in new_articles
+    )
+
+
+with open(SEEN_FILE, "w", encoding="utf-8") as f:
+    json.dump(
+        list(seen),
+        f,
+        ensure_ascii=False
+    )
