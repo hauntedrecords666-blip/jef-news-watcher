@@ -46,15 +46,15 @@ new_articles = [
 
 if new_articles:
 
-    message = "\n\n".join(
-        f"【ジェフNEWS更新】\n{a['title']}\n{a['url']}"
-        for a in new_articles
-    )
+    for a in reversed(new_articles):
 
-    requests.post(
-        os.environ["DISCORD_WEBHOOK"],
-        json={"content": message}
-    )
+        requests.post(
+            os.environ["DISCORD_WEBHOOK"],
+            json={
+                "content":
+                f"【ジェフNEWS更新】\n{a['title']}\n{a['url']}"
+            }
+        )
 
     seen.update(
         a["url"] for a in new_articles
