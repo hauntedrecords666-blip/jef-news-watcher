@@ -26,23 +26,31 @@ def save_seen(seen):
         )
 
 
-def get_latest_number(seen):
+def extract_number(url):
+    try:
+        return int(
+            url.rstrip("/").split("/")[-1]
+        )
+    except:
+        return None
 
-    nums = []
+
+def get_base_number(seen):
+
+    numbers = []
 
     for url in seen:
-        try:
-            nums.append(
-                int(url.rstrip("/").split("/")[-1])
-            )
-        except:
-            pass
+        n = extract_number(url)
 
-    if nums:
-        return max(nums)
+        if n:
+            numbers.append(n)
 
-    # 初回だけ現在付近を探す
+    if numbers:
+        return max(numbers)
+
+    # 初回
     return 5200
+
 
 
 def get_article(number):
@@ -50,7 +58,7 @@ def get_article(number):
     url = BASE + str(number)
 
     try:
-        r = requests.get(
+        response = requests.get(
             url,
             headers={
                 "User-Agent": "Mozilla/5.0"
@@ -62,12 +70,12 @@ def get_article(number):
         return None
 
 
-    if r.status_code != 200:
+    if response.status_code != 200:
         return None
 
 
     soup = BeautifulSoup(
-        r.text,
+        response.text,
         "html.parser"
     )
 
@@ -75,7 +83,6 @@ def get_article(number):
     title = None
 
 
-    # h1優先
     h1 = soup.find("h1")
 
     if h1:
@@ -85,7 +92,6 @@ def get_article(number):
         )
 
 
-    # fallback
     if not title and soup.title:
         title = soup.title.text
 
@@ -110,20 +116,23 @@ def get_article(number):
 seen = load_seen()
 
 
-latest = get_latest_number(seen)
+base_number = get_base_number(seen)
 
 
-# 最新番号から未来100件を見る
-check_numbers = range(
-    latest + 1,
-    latest + 101
+# 既存番号の前後を見る
+check_range = range(
+    base_number - 50,
+    base_number + 101
 )
 
 
 articles = []
 
 
-for number in check_numbers:
+for number in check_range:
+
+    if number <= 0:
+        continue
 
     article = get_article(number)
 
@@ -133,16 +142,21 @@ for number in check_numbers:
 
 
 new_articles = [
-    a
-    for a in articles
-    if a["url"] not in seen
+    article
+    for article in articles
+    if article["url"] not in seen
 ]
 
 
 if new_articles:
 
-    # 古い記事から通知
-    for article in reversed(new_articles):
+    # 古い番号順
+    new_articles.sort(
+        key=lambda x: extract_number(x["url"])
+    )
+
+
+    for article in new_articles:
 
         requests.post(
             os.environ["DISCORD_WEBHOOK"],
@@ -161,10 +175,4 @@ if new_articles:
         )
 
 
-    save_seen(seen)
-
-
-else:
-
-    # 初回や変更なしでも保存
-    save_seen(seen)
+save_seen(seen)
