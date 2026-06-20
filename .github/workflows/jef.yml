@@ -2,7 +2,7 @@ name: JEF NEWS WATCHER
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "1,16,31,46 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -30,7 +30,11 @@ jobs:
       - run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
+
           git add seen.json
+
           git diff --cached --quiet || git commit -m "update seen"
+
           git pull --rebase
+
           git push
