@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 
 
-BASE = "https://jefunited.co.jp/news/detail/"
+BASE_URL = "https://jefunited.co.jp/news/detail/"
 SEEN_FILE = "seen.json"
 
 
@@ -26,7 +26,7 @@ def save_seen(seen):
         )
 
 
-def extract_number(url):
+def get_number(url):
     try:
         return int(
             url.rstrip("/").split("/")[-1]
@@ -35,30 +35,30 @@ def extract_number(url):
         return None
 
 
-def get_base_number(seen):
+def get_latest_seen(seen):
 
-    numbers = []
+    nums = []
 
     for url in seen:
-        n = extract_number(url)
+        n = get_number(url)
 
         if n:
-            numbers.append(n)
+            nums.append(n)
 
-    if numbers:
-        return max(numbers)
+    if nums:
+        return max(nums)
 
-    # 初回
-    return 5200
+    # 初回基準
+    return 5208
 
 
 
-def get_article(number):
+def fetch_news(number):
 
-    url = BASE + str(number)
+    url = BASE_URL + str(number)
 
     try:
-        response = requests.get(
+        r = requests.get(
             url,
             headers={
                 "User-Agent": "Mozilla/5.0"
@@ -70,34 +70,36 @@ def get_article(number):
         return None
 
 
-    if response.status_code != 200:
+    if r.status_code != 200:
+        return None
+
+
+    # リダイレクト・存在しないページ対策
+    if r.url.rstrip("/") != url:
         return None
 
 
     soup = BeautifulSoup(
-        response.text,
+        r.text,
         "html.parser"
     )
 
 
-    title = None
-
-
+    # 本物の記事判定
     h1 = soup.find("h1")
 
-    if h1:
-        title = h1.get_text(
-            " ",
-            strip=True
-        )
+    if not h1:
+        return None
 
 
-    if not title and soup.title:
-        title = soup.title.text
+    title = h1.get_text(
+        " ",
+        strip=True
+    )
 
 
     if not title:
-        title = f"NEWS {number}"
+        return None
 
 
     title = title.replace(
@@ -116,43 +118,58 @@ def get_article(number):
 seen = load_seen()
 
 
-base_number = get_base_number(seen)
+latest = get_latest_seen(seen)
 
 
-# 既存番号の前後を見る
-check_range = range(
-    base_number - 50,
-    base_number + 101
-)
+# 前後を見る
+start = latest - 50
+end = latest + 101
 
 
 articles = []
 
 
-for number in check_range:
+for number in range(start, end):
 
     if number <= 0:
         continue
 
-    article = get_article(number)
+
+    article = fetch_news(number)
+
 
     if article:
         articles.append(article)
 
 
 
+# 未通知だけ
 new_articles = [
-    article
-    for article in articles
-    if article["url"] not in seen
+    a for a in articles
+    if a["url"] not in seen
 ]
 
 
-if new_articles:
 
-    # 古い番号順
+# 初回だけは大量通知しない
+if not seen and new_articles:
+
+    # 最新だけを基準登録
+    latest_article = max(
+        new_articles,
+        key=lambda x: get_number(x["url"])
+    )
+
+    seen.add(
+        latest_article["url"]
+    )
+
+
+else:
+
+    # 番号順
     new_articles.sort(
-        key=lambda x: extract_number(x["url"])
+        key=lambda x: get_number(x["url"])
     )
 
 
@@ -173,6 +190,7 @@ if new_articles:
         seen.add(
             article["url"]
         )
+
 
 
 save_seen(seen)
