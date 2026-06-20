@@ -3,46 +3,39 @@ import os
 import requests
 from bs4 import BeautifulSoup
 
-NEWS_URL = "https://jefunited.co.jp/news/list"
+BASE = "https://jefunited.co.jp/news/detail/"
 SEEN_FILE = "seen.json"
-
-html = requests.get(
-    NEWS_URL,
-    headers={"User-Agent": "Mozilla/5.0"}
-).text
-
-soup = BeautifulSoup(html, "html.parser")
-
-articles = []
-
-for a in soup.find_all("a", href=True):
-    href = a["href"]
-
-    if "/news/detail/" in href:
-        if href.startswith("/"):
-            href = "https://jefunited.co.jp" + href
-
-        title = a.get_text(" ", strip=True)
-
-        if title:
-            articles.append({
-                "url": href,
-                "title": title
-            })
-
-# URL重複除去
-unique = {}
-for a in articles:
-    unique[a["url"]] = a
-
-articles = list(unique.values())[:50]
-
 
 try:
     with open(SEEN_FILE, encoding="utf-8") as f:
         seen = set(json.load(f))
 except:
     seen = set()
+
+# ここは後で自動化できる
+# とりあえず現在値付近
+numbers = range(5200, 5230)
+
+articles = []
+
+for n in numbers:
+    url = BASE + str(n)
+
+    r = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=10
+    )
+
+    if r.status_code == 200:
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        title = soup.title.text if soup.title else f"NEWS {n}"
+
+        articles.append({
+            "url": url,
+            "title": title
+        })
 
 
 new_articles = [
@@ -52,11 +45,10 @@ new_articles = [
 
 
 if new_articles:
+
     message = "\n\n".join(
-        [
-            f"【ジェフNEWS更新】\n{a['title']}\n{a['url']}"
-            for a in reversed(new_articles)
-        ]
+        f"【ジェフNEWS更新】\n{a['title']}\n{a['url']}"
+        for a in new_articles
     )
 
     requests.post(
