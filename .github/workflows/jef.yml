@@ -1,0 +1,35 @@
+name: JEF NEWS WATCHER
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests beautifulsoup4
+
+      - run: python watch_jef.py
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add seen.json
+          git diff --cached --quiet || git commit -m "update seen"
+          git push
