@@ -13,7 +13,10 @@ SEEN_FILE = "seen_frontale.json"
 def load_seen():
 
     try:
-        with open(SEEN_FILE, encoding="utf-8") as f:
+        with open(
+            SEEN_FILE,
+            encoding="utf-8"
+        ) as f:
             return set(json.load(f))
 
     except:
@@ -50,7 +53,7 @@ def get_articles():
             timeout=10
         )
 
-    except:
+    except Exception:
 
         return []
 
@@ -68,12 +71,15 @@ def get_articles():
     articles = []
 
 
-    for a in soup.find_all("a", href=True):
+    for a in soup.find_all(
+        "a",
+        href=True
+    ):
 
         url = a["href"]
 
 
-        # 川崎ニュース記事だけ
+        # 川崎公式ニュース記事だけ
         if not (
             "/info/2026/" in url
             and url.endswith(".html")
@@ -82,7 +88,9 @@ def get_articles():
 
 
         # 一覧ページ除外
-        if url.endswith("index.html"):
+        if url.endswith(
+            "index.html"
+        ):
             continue
 
 
@@ -121,45 +129,31 @@ articles = get_articles()
 
 
 new_articles = [
-    a
-    for a in articles
-    if a["url"] not in seen
+    article
+    for article in articles
+    if article["url"] not in seen
 ]
 
 
-
-# 初回は登録だけ
-if not seen:
-
-
-    for article in new_articles:
-
-        seen.add(
-            article["url"]
-        )
+# 通知
+for article in reversed(new_articles):
 
 
-else:
+    requests.post(
+        os.environ["FRONTALE_WEBHOOK"],
+        json={
+            "content":
+            f"【川崎フロンターレNEWS更新】\n"
+            f"{article['title']}\n"
+            f"{article['url']}"
+        },
+        timeout=10
+    )
 
 
-    for article in reversed(new_articles):
-
-
-        requests.post(
-            os.environ["FRONTALE_WEBHOOK"],
-            json={
-                "content":
-                f"【川崎フロンターレNEWS更新】\n"
-                f"{article['title']}\n"
-                f"{article['url']}"
-            },
-            timeout=10
-        )
-
-
-        seen.add(
-            article["url"]
-        )
+    seen.add(
+        article["url"]
+    )
 
 
 
