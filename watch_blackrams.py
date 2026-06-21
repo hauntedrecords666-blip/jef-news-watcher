@@ -1,0 +1,160 @@
+import json
+import os
+import requests
+from bs4 import BeautifulSoup
+
+
+NEWS_URL = "https://blackrams-tokyo.com/news/index.html"
+BASE_URL = "https://blackrams-tokyo.com"
+
+SEEN_FILE = "seen_blackrams.json"
+
+
+
+def load_seen():
+
+    try:
+        with open(
+            SEEN_FILE,
+            encoding="utf-8"
+        ) as f:
+            return set(json.load(f))
+
+    except:
+        return set()
+
+
+
+def save_seen(seen):
+
+    with open(
+        SEEN_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            list(seen),
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+
+
+def get_articles():
+
+    try:
+
+        r = requests.get(
+            NEWS_URL,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            },
+            timeout=10
+        )
+
+    except:
+
+        return []
+
+
+    if r.status_code != 200:
+        return []
+
+
+    soup = BeautifulSoup(
+        r.text,
+        "html.parser"
+    )
+
+
+    articles = []
+
+
+    for a in soup.find_all(
+        "a",
+        href=True
+    ):
+
+        url = a["href"]
+
+
+        # ニュース記事だけ
+        if "/news/" not in url:
+            continue
+
+
+        if not url.endswith(".html"):
+            continue
+
+
+        if url.endswith(
+            "index.html"
+        ):
+            continue
+
+
+        if url.startswith("/"):
+
+            url = BASE_URL + url
+
+
+        title = a.get_text(
+            " ",
+            strip=True
+        )
+
+
+        if not title:
+            continue
+
+
+        articles.append(
+            {
+                "url": url,
+                "title": title
+            }
+        )
+
+
+    return articles
+
+
+
+seen = load_seen()
+
+
+articles = get_articles()
+
+
+new_articles = [
+    a
+    for a in articles
+    if a["url"] not in seen
+]
+
+
+
+for article in reversed(new_articles):
+
+
+    requests.post(
+        os.environ["BLACKRAMS_WEBHOOK"],
+        json={
+            "content":
+            f"【ブラックラムズNEWS更新】\n"
+            f"{article['title']}\n"
+            f"{article['url']}"
+        },
+        timeout=10
+    )
+
+
+    seen.add(
+        article["url"]
+    )
+
+
+
+save_seen(seen)
