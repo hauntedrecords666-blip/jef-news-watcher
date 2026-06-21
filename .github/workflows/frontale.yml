@@ -31,7 +31,7 @@ jobs:
 
       - run: python watch_frontale.py
         env:
-          DISCORD_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
+          FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
 
 
       - run: |
