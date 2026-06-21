@@ -5,19 +5,30 @@ from bs4 import BeautifulSoup
 
 
 NEWS_URL = "https://www.frontale.co.jp/info/"
+BASE_URL = "https://www.frontale.co.jp"
+
 SEEN_FILE = "seen_frontale.json"
 
 
 def load_seen():
+
     try:
         with open(SEEN_FILE, encoding="utf-8") as f:
             return set(json.load(f))
+
     except:
         return set()
 
 
+
 def save_seen(seen):
-    with open(SEEN_FILE, "w", encoding="utf-8") as f:
+
+    with open(
+        SEEN_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
         json.dump(
             list(seen),
             f,
@@ -26,35 +37,59 @@ def save_seen(seen):
         )
 
 
-seen = load_seen()
+
+def get_articles():
+
+    try:
+
+        r = requests.get(
+            NEWS_URL,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            },
+            timeout=10
+        )
+
+    except:
+
+        return []
 
 
-r = requests.get(
-    NEWS_URL,
-    headers={
-        "User-Agent": "Mozilla/5.0"
-    },
-    timeout=10
-)
+    if r.status_code != 200:
+        return []
 
 
-soup = BeautifulSoup(
-    r.text,
-    "html.parser"
-)
+    soup = BeautifulSoup(
+        r.text,
+        "html.parser"
+    )
 
 
-articles = []
+    articles = []
 
 
-for a in soup.find_all("a", href=True):
+    for a in soup.find_all("a", href=True):
 
-    url = a["href"]
+        url = a["href"]
 
-    if "/info/" in url and url.endswith(".html"):
 
+        # 川崎ニュース記事だけ
+        if not (
+            "/info/2026/" in url
+            and url.endswith(".html")
+        ):
+            continue
+
+
+        # 一覧ページ除外
+        if url.endswith("index.html"):
+            continue
+
+
+        # 絶対URL化
         if url.startswith("/"):
-            url = "https://www.frontale.co.jp" + url
+
+            url = BASE_URL + url
 
 
         title = a.get_text(
@@ -63,43 +98,69 @@ for a in soup.find_all("a", href=True):
         )
 
 
-        if title:
+        if not title:
+            continue
 
-            articles.append({
+
+        articles.append(
+            {
                 "url": url,
                 "title": title
-            })
+            }
+        )
 
+
+    return articles
+
+
+
+seen = load_seen()
+
+
+articles = get_articles()
 
 
 new_articles = [
-    a for a in articles
+    a
+    for a in articles
     if a["url"] not in seen
 ]
+
 
 
 # 初回は登録だけ
 if not seen:
 
-    for a in new_articles:
-        seen.add(a["url"])
+
+    for article in new_articles:
+
+        seen.add(
+            article["url"]
+        )
+
 
 else:
 
-    for a in reversed(new_articles):
+
+    for article in reversed(new_articles):
+
 
         requests.post(
-            os.environ["DISCORD_WEBHOOK"],
+            os.environ["FRONTALE_WEBHOOK"],
             json={
                 "content":
                 f"【川崎フロンターレNEWS更新】\n"
-                f"{a['title']}\n"
-                f"{a['url']}"
+                f"{article['title']}\n"
+                f"{article['url']}"
             },
             timeout=10
         )
 
-        seen.add(a["url"])
+
+        seen.add(
+            article["url"]
+        )
+
 
 
 save_seen(seen)
