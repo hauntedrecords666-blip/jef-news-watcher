@@ -80,7 +80,6 @@ def get_articles():
         url = a["href"]
 
 
-        # ニュース記事だけ
         if "/news/" not in url:
             continue
 
@@ -89,15 +88,14 @@ def get_articles():
             continue
 
 
-        if url.endswith(
-            "index.html"
-        ):
+        if url.endswith("index.html"):
             continue
 
 
         if url.startswith("/"):
 
             url = BASE_URL + url
+
 
 
         title = a.get_text(
@@ -122,10 +120,54 @@ def get_articles():
 
 
 
+
+def get_og_image(url):
+
+    try:
+
+        r = requests.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            },
+            timeout=10
+        )
+
+
+    except:
+
+        return None
+
+
+
+    soup = BeautifulSoup(
+        r.text,
+        "html.parser"
+    )
+
+
+    og = soup.find(
+        "meta",
+        property="og:image"
+    )
+
+
+    if og:
+
+        return og.get("content")
+
+
+    return None
+
+
+
+
+
 seen = load_seen()
 
 
 articles = get_articles()
+
 
 
 new_articles = [
@@ -139,16 +181,47 @@ new_articles = [
 for article in reversed(new_articles):
 
 
-    requests.post(
-        os.environ["BLACKRAMS_WEBHOOK"],
-        json={
-            "content":
-            f"【ブラックラムズNEWS更新】\n"
-            f"{article['title']}\n"
-            f"{article['url']}"
-        },
-        timeout=10
+    image = get_og_image(
+        article["url"]
     )
+
+
+    embed = {
+
+        "title": article["title"],
+
+        "url": article["url"],
+
+        "description":
+            "ブラックラムズ東京 公式NEWS"
+
+    }
+
+
+    if image:
+
+        embed["image"] = {
+            "url": image
+        }
+
+
+
+    requests.post(
+
+        os.environ["BLACKRAMS_WEBHOOK"],
+
+        json={
+
+            "embeds": [
+                embed
+            ]
+
+        },
+
+        timeout=10
+
+    )
+
 
 
     seen.add(
