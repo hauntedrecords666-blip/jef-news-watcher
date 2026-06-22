@@ -2,7 +2,7 @@ name: JEF NEWS WATCHER
 
 on:
   schedule:
-    - cron: "1,16,31,46 * * * *"
+    - cron: "7,22,47,52 * * * *"
   workflow_dispatch:
 
 jobs:
