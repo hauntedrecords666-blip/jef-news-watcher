@@ -4,8 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-
-LIST_URL = "https://jefunited.co.jp/news/list"
+BASE_URL = "https://jefunited.co.jp/news/detail/"
 SEEN_FILE = "seen.json"
 
 
@@ -22,50 +21,74 @@ def save_seen(seen):
         json.dump(list(seen), f, ensure_ascii=False, indent=2)
 
 
-def fetch_list():
-    r = requests.get(
-        LIST_URL,
-        headers={"User-Agent": "Mozilla/5.0"},
-        timeout=10
-    )
+def fetch_detail(url):
+    try:
+        r = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10
+        )
+    except Exception as e:
+        print("request error:", url, e)
+        return None
 
     if r.status_code != 200:
-        print("list fetch failed:", r.status_code)
-        return []
+        return None
 
     soup = BeautifulSoup(r.text, "html.parser")
 
+    # タイトル取得（h1がダメでもtitleで救済）
+    title_tag = soup.find("h1")
+    if not title_tag:
+        title_tag = soup.find("title")
+
+    if not title_tag:
+        return None
+
+    title = title_tag.get_text(" ", strip=True)
+
+    # ノイズ削除
+    title = title.replace(
+        "｜ニュース｜ジェフユナイテッド市原・千葉 公式ウェブサイト",
+        ""
+    ).strip()
+
+    return {
+        "url": url,
+        "title": title
+    }
+
+
+def scan_range(latest_seen_num, range_size=120):
     articles = []
 
-    # aタグから /news/detail/ を拾う
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
+    start = latest_seen_num + 1
+    end = latest_seen_num + range_size
 
-        if "/news/detail/" not in href:
-            continue
+    for num in range(start, end):
+        url = BASE_URL + str(num)
+        article = fetch_detail(url)
 
-        url = urljoin(LIST_URL, href)
+        if article:
+            articles.append(article)
 
-        title = a.get_text(" ", strip=True)
+    return articles
 
-        if not title:
-            continue
 
-        articles.append({
-            "url": url,
-            "title": title
-        })
+def get_latest_seen(seen):
+    nums = []
 
-    # 重複排除
-    unique = {}
-    for a in articles:
-        unique[a["url"]] = a
+    for url in seen:
+        try:
+            nums.append(int(url.rstrip("/").split("/")[-1]))
+        except:
+            pass
 
-    return list(unique.values())
+    return max(nums) if nums else 5200
 
 
 def send_discord(article):
-    requests.post(
+    res = requests.post(
         os.environ["DISCORD_WEBHOOK"],
         json={
             "content": (
@@ -77,39 +100,40 @@ def send_discord(article):
         timeout=10
     )
 
+    print("discord status:", res.status_code, res.text)
+
 
 def main():
     seen = load_seen()
 
-    articles = fetch_list()
+    latest = get_latest_seen(seen)
 
-    if not articles:
-        print("no articles fetched")
-        return
+    print("latest seen:", latest)
 
-    # 新規判定
+    articles = scan_range(latest)
+
+    print("fetched:", len(articles))
+
     new_articles = [
         a for a in articles
         if a["url"] not in seen
     ]
 
-    # 日付順っぽく安定化（URL or DOM順）
-    new_articles = list(reversed(new_articles))
+    print("new:", len(new_articles))
 
+    # 初回暴発防止
     if not seen and new_articles:
-        # 初回は最新だけ登録（暴発防止）
-        latest = new_articles[0]
-        seen.add(latest["url"])
+        seen.add(new_articles[-1]["url"])
         save_seen(seen)
-        print("initial run, skipped sending")
+        print("initial run skip")
         return
 
-    for article in new_articles:
+    for article in sorted(new_articles, key=lambda x: int(x["url"].split("/")[-1])):
         send_discord(article)
         seen.add(article["url"])
 
     save_seen(seen)
-    print(f"sent {len(new_articles)} articles")
+    print("done")
 
 
 if __name__ == "__main__":
