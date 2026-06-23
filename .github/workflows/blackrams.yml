@@ -2,7 +2,7 @@ name: BLACKRAMS NEWS WATCHER
 
 on:
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "11,26,41,56 * * * *"
   workflow_dispatch:
 
 
