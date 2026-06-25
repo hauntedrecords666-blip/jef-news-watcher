@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-BASE_URL = "https://jefunited.co.jp/news/detail/"
+LIST_URL = "https://jefunited.co.jp/news/"
 SEEN_FILE = "seen.json"
 
 
@@ -19,6 +19,37 @@ def load_seen():
 def save_seen(seen):
     with open(SEEN_FILE, "w", encoding="utf-8") as f:
         json.dump(list(seen), f, ensure_ascii=False, indent=2)
+
+
+def fetch_list():
+    """
+    一覧ページからニュースURLを全部拾う（ここが本体）
+    """
+    r = requests.get(
+        LIST_URL,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=10
+    )
+
+    if r.status_code != 200:
+        print("list fetch failed:", r.status_code)
+        return []
+
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    urls = set()
+
+    for a in soup.select("a[href]"):
+        href = a.get("href")
+
+        if not href:
+            continue
+
+        if "/news/detail/" in href:
+            full_url = urljoin(LIST_URL, href)
+            urls.add(full_url.split("?")[0])
+
+    return list(urls)
 
 
 def fetch_detail(url):
@@ -37,17 +68,12 @@ def fetch_detail(url):
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # タイトル取得（h1がダメでもtitleで救済）
-    title_tag = soup.find("h1")
-    if not title_tag:
-        title_tag = soup.find("title")
-
+    title_tag = soup.find("h1") or soup.find("title")
     if not title_tag:
         return None
 
     title = title_tag.get_text(" ", strip=True)
 
-    # ノイズ削除
     title = title.replace(
         "｜ニュース｜ジェフユナイテッド市原・千葉 公式ウェブサイト",
         ""
@@ -57,34 +83,6 @@ def fetch_detail(url):
         "url": url,
         "title": title
     }
-
-
-def scan_range(latest_seen_num, range_size=120):
-    articles = []
-
-    start = latest_seen_num + 1
-    end = latest_seen_num + range_size
-
-    for num in range(start, end):
-        url = BASE_URL + str(num)
-        article = fetch_detail(url)
-
-        if article:
-            articles.append(article)
-
-    return articles
-
-
-def get_latest_seen(seen):
-    nums = []
-
-    for url in seen:
-        try:
-            nums.append(int(url.rstrip("/").split("/")[-1]))
-        except:
-            pass
-
-    return max(nums) if nums else 5200
 
 
 def send_discord(article):
@@ -100,35 +98,40 @@ def send_discord(article):
         timeout=10
     )
 
-    print("discord status:", res.status_code, res.text)
+    print("discord status:", res.status_code)
 
 
 def main():
     seen = load_seen()
 
-    latest = get_latest_seen(seen)
+    print("seen count:", len(seen))
 
-    print("latest seen:", latest)
+    urls = fetch_list()
 
-    articles = scan_range(latest)
+    print("fetched urls:", len(urls))
 
-    print("fetched:", len(articles))
+    new_urls = [u for u in urls if u not in seen]
 
-    new_articles = [
-        a for a in articles
-        if a["url"] not in seen
-    ]
-
-    print("new:", len(new_articles))
+    print("new urls:", len(new_urls))
 
     # 初回暴発防止
-    if not seen and new_articles:
-        seen.add(new_articles[-1]["url"])
+    if not seen and new_urls:
+        seen.update(new_urls)
         save_seen(seen)
         print("initial run skip")
         return
 
-    for article in sorted(new_articles, key=lambda x: int(x["url"].split("/")[-1])):
+    articles = []
+
+    for url in sorted(new_urls):
+        article = fetch_detail(url)
+        if article:
+            articles.append(article)
+
+    # 古い→新しい順に送る
+    articles.sort(key=lambda x: int(x["url"].split("/")[-1]))
+
+    for article in articles:
         send_discord(article)
         seen.add(article["url"])
 
