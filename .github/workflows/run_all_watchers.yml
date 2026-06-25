@@ -3,6 +3,9 @@ name: RUN ALL WATCHERS
 on:
   workflow_dispatch:
 
+permissions:
+  actions: write
+
 jobs:
 
   trigger:
