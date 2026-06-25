@@ -21,6 +21,7 @@ def load_seen():
             return set(json.load(f))
 
     except:
+
         return set()
 
 
@@ -60,6 +61,7 @@ def get_articles():
 
 
     if r.status_code != 200:
+
         return []
 
 
@@ -72,24 +74,26 @@ def get_articles():
     articles = []
 
 
-    for a in soup.find_all(
-        "a",
-        href=True
+    # ニュース一覧部分だけ取得
+    for dd in soup.select(
+        "dl.infoIndex dd"
     ):
+
+
+        a = dd.find(
+            "a",
+            href=True
+        )
+
+
+        if not a:
+
+            continue
+
+
 
         url = a["href"]
 
-
-        if "/news/" not in url:
-            continue
-
-
-        if not url.endswith(".html"):
-            continue
-
-
-        if url.endswith("index.html"):
-            continue
 
 
         if url.startswith("/"):
@@ -105,7 +109,9 @@ def get_articles():
 
 
         if not title:
+
             continue
+
 
 
         articles.append(
@@ -171,9 +177,13 @@ articles = get_articles()
 
 
 new_articles = [
+
     a
+
     for a in articles
+
     if a["url"] not in seen
+
 ]
 
 
@@ -201,7 +211,9 @@ for article in reversed(new_articles):
     if image:
 
         embed["image"] = {
+
             "url": image
+
         }
 
 
@@ -213,7 +225,9 @@ for article in reversed(new_articles):
         json={
 
             "embeds": [
+
                 embed
+
             ]
 
         },
@@ -221,7 +235,6 @@ for article in reversed(new_articles):
         timeout=10
 
     )
-
 
 
     seen.add(
