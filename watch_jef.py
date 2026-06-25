@@ -22,9 +22,6 @@ def save_seen(seen):
 
 
 def fetch_list():
-    """
-    一覧ページからニュースURLを全部拾う（ここが本体）
-    """
     r = requests.get(
         LIST_URL,
         headers={"User-Agent": "Mozilla/5.0"},
@@ -104,17 +101,15 @@ def send_discord(article):
 def main():
     seen = load_seen()
 
-    print("seen count:", len(seen))
-
     urls = fetch_list()
 
-    print("fetched urls:", len(urls))
+    print("fetched:", len(urls))
+    print("seen:", len(seen))
 
-    new_urls = [u for u in urls if u not in seen]
+    new_urls = set(urls) - seen
 
-    print("new urls:", len(new_urls))
+    print("new:", len(new_urls))
 
-    # 初回暴発防止
     if not seen and new_urls:
         seen.update(new_urls)
         save_seen(seen)
@@ -123,13 +118,10 @@ def main():
 
     articles = []
 
-    for url in sorted(new_urls):
+    for url in new_urls:
         article = fetch_detail(url)
         if article:
             articles.append(article)
-
-    # 古い→新しい順に送る
-    articles.sort(key=lambda x: int(x["url"].split("/")[-1]))
 
     for article in articles:
         send_discord(article)
