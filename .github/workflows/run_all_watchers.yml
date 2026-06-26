@@ -26,6 +26,7 @@ jobs:
     steps:
 
 
+
       - name: Run BlackRams WATCHER
 
         uses: actions/github-script@v7
@@ -47,6 +48,12 @@ jobs:
               ref: 'main'
 
             })
+
+
+
+      - name: Wait
+
+        run: sleep 60
 
 
 
@@ -74,6 +81,12 @@ jobs:
 
 
 
+      - name: Wait
+
+        run: sleep 60
+
+
+
       - name: Run Frontale WATCHER
 
         uses: actions/github-script@v7
@@ -95,6 +108,12 @@ jobs:
               ref: 'main'
 
             })
+
+
+
+      - name: Wait
+
+        run: sleep 60
 
 
 
