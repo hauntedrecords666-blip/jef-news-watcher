@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import requests
 from bs4 import BeautifulSoup
 
@@ -13,13 +14,16 @@ SEEN_FILE = "seen_frontale.json"
 def load_seen():
 
     try:
+
         with open(
             SEEN_FILE,
             encoding="utf-8"
         ) as f:
+
             return set(json.load(f))
 
-    except:
+    except Exception:
+
         return set()
 
 
@@ -59,6 +63,7 @@ def get_articles():
 
 
     if r.status_code != 200:
+
         return []
 
 
@@ -76,28 +81,27 @@ def get_articles():
         href=True
     ):
 
+
         url = a["href"]
 
 
-        # 川崎公式ニュース記事だけ
-        if not (
-            "/info/2026/" in url
-            and url.endswith(".html")
+        # 川崎公式ニュース記事
+        # 年月に依存しない
+        if not re.search(
+            r"/info/\d{4}/\d{2}/.*\.html$",
+            url
         ):
+
             continue
 
 
-        # 一覧ページ除外
-        if url.endswith(
-            "index.html"
-        ):
-            continue
 
+        # 相対URLを絶対URL化
 
-        # 絶対URL化
         if url.startswith("/"):
 
             url = BASE_URL + url
+
 
 
         title = a.get_text(
@@ -107,7 +111,9 @@ def get_articles():
 
 
         if not title:
+
             continue
+
 
 
         articles.append(
@@ -118,7 +124,9 @@ def get_articles():
         )
 
 
+
     return articles
+
 
 
 
@@ -128,6 +136,7 @@ seen = load_seen()
 articles = get_articles()
 
 
+
 new_articles = [
     article
     for article in articles
@@ -135,20 +144,30 @@ new_articles = [
 ]
 
 
-# 通知
+
+# 新着通知
+
 for article in reversed(new_articles):
 
 
-    requests.post(
-        os.environ["FRONTALE_WEBHOOK"],
-        json={
-            "content":
-            f"【川崎フロンターレNEWS更新】\n"
-            f"{article['title']}\n"
-            f"{article['url']}"
-        },
-        timeout=10
-    )
+    try:
+
+        requests.post(
+            os.environ["FRONTALE_WEBHOOK"],
+            json={
+                "content":
+                f"【川崎フロンターレNEWS更新】\n"
+                f"{article['title']}\n"
+                f"{article['url']}"
+            },
+            timeout=10
+        )
+
+
+    except Exception:
+
+        pass
+
 
 
     seen.add(
