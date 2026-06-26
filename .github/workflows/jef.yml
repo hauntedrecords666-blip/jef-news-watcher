@@ -7,14 +7,6 @@ on:
 
 
 
-concurrency:
-
-  group: sports-news-watchers
-
-  cancel-in-progress: false
-
-
-
 jobs:
 
 
