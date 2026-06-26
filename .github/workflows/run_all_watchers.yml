@@ -53,7 +53,7 @@ jobs:
 
       - name: Wait
 
-        run: sleep 30
+        run: sleep 20
 
 
 
@@ -83,7 +83,7 @@ jobs:
 
       - name: Wait
 
-        run: sleep 30
+        run: sleep 20
 
 
 
@@ -113,7 +113,7 @@ jobs:
 
       - name: Wait
 
-        run: sleep 30
+        run: sleep 20
 
 
 
