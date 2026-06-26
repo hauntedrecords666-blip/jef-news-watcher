@@ -9,7 +9,7 @@ on:
 
 concurrency:
 
-  group: sports-news-watchers
+  group: FRONTale-news-watchers
 
   cancel-in-progress: false
 
