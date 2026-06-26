@@ -27,36 +27,6 @@ jobs:
 
 
 
-      - name: Run BlackRams WATCHER
-
-        uses: actions/github-script@v7
-
-        with:
-
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-          script: |
-
-            await github.rest.actions.createWorkflowDispatch({
-
-              owner: context.repo.owner,
-
-              repo: context.repo.repo,
-
-              workflow_id: 'blackrams.yml',
-
-              ref: 'main'
-
-            })
-
-
-
-      - name: Wait
-
-        run: sleep 60
-
-
-
       - name: Run JEF WATCHER
 
         uses: actions/github-script@v7
@@ -104,6 +74,36 @@ jobs:
               repo: context.repo.repo,
 
               workflow_id: 'frontale.yml',
+
+              ref: 'main'
+
+            })
+
+
+
+      - name: Wait
+
+        run: sleep 60
+
+
+
+      - name: Run BlackRams WATCHER
+
+        uses: actions/github-script@v7
+
+        with:
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+          script: |
+
+            await github.rest.actions.createWorkflowDispatch({
+
+              owner: context.repo.owner,
+
+              repo: context.repo.repo,
+
+              workflow_id: 'blackrams.yml',
 
               ref: 'main'
 
