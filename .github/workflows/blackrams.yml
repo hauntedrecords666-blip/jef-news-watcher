@@ -1,45 +1,82 @@
 name: BLACKRAMS NEWS WATCHER
 
+
 on:
+
   workflow_dispatch:
+
+
+
+concurrency:
+
+  group: sports-news-watchers
+
+  cancel-in-progress: false
+
 
 
 jobs:
 
+
   check:
+
 
     runs-on: ubuntu-latest
 
+
     permissions:
+
       contents: write
+
 
 
     steps:
 
+
       - uses: actions/checkout@v4
 
 
+
       - uses: actions/setup-python@v5
+
         with:
+
           python-version: "3.12"
 
 
-      - run: pip install requests beautifulsoup4
+
+      - name: install dependencies
+
+        run: pip install requests beautifulsoup4
 
 
-      - run: python watch_blackrams.py
+
+      - name: run watcher
+
+        run: python watch_blackrams.py
+
         env:
+
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
 
 
-      - run: |
+
+      - name: update seen file
+
+        run: |
+
           git config user.name github-actions
+
           git config user.email github-actions@github.com
+
 
           git add seen_blackrams.json
 
+
           git diff --cached --quiet || git commit -m "update blackrams seen"
 
-          git pull --rebase
 
-          git push
+          git pull --rebase origin main
+
+
+          git push origin main
