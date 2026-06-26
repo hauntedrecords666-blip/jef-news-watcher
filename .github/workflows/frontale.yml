@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
 
 
+
 concurrency:
 
-  group: frontale-news-watcher
+  group: sports-news-watchers
 
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 
 
@@ -44,11 +45,15 @@ jobs:
 
 
 
-      - run: pip install requests beautifulsoup4
+      - name: install dependencies
+
+        run: pip install requests beautifulsoup4
 
 
 
-      - run: python watch_frontale.py
+      - name: run watcher
+
+        run: python watch_frontale.py
 
         env:
 
@@ -68,21 +73,10 @@ jobs:
           git add seen_frontale.json
 
 
-          if git diff --cached --quiet; then
-
-            echo "no changes"
-
-            exit 0
-
-          fi
-
-
-          git commit -m "update frontale seen"
-
+          git diff --cached --quiet || git commit -m "update frontale seen"
 
 
           git pull --rebase origin main
-
 
 
           git push origin main
