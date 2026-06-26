@@ -9,7 +9,7 @@ on:
 
 concurrency:
 
-  group: BLACKRAMS-news-watchers
+  group: sports-news-watchers
 
   cancel-in-progress: false
 
