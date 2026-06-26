@@ -1,45 +1,88 @@
 name: FRONTale NEWS WATCHER
 
+
 on:
+
   workflow_dispatch:
+
+
+concurrency:
+
+  group: frontale-news-watcher
+
+  cancel-in-progress: true
+
 
 
 jobs:
 
+
   check:
+
 
     runs-on: ubuntu-latest
 
+
     permissions:
+
       contents: write
+
 
 
     steps:
 
+
       - uses: actions/checkout@v4
 
 
+
       - uses: actions/setup-python@v5
+
         with:
+
           python-version: "3.12"
+
 
 
       - run: pip install requests beautifulsoup4
 
 
+
       - run: python watch_frontale.py
+
         env:
+
           FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
 
 
-      - run: |
+
+      - name: update seen file
+
+        run: |
+
           git config user.name github-actions
+
           git config user.email github-actions@github.com
+
 
           git add seen_frontale.json
 
-          git diff --cached --quiet || git commit -m "update frontale seen"
 
-          git pull --rebase
+          if git diff --cached --quiet; then
 
-          git push
+            echo "no changes"
+
+            exit 0
+
+          fi
+
+
+          git commit -m "update frontale seen"
+
+
+
+          git pull --rebase origin main
+
+
+
+          git push origin main
