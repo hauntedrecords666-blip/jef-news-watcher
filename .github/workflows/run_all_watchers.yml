@@ -1,61 +1,121 @@
 name: RUN ALL WATCHERS
 
+
 on:
 
   workflow_dispatch:
 
 
+
 permissions:
+
   actions: write
+
 
 
 jobs:
 
+
   trigger:
 
+
     runs-on: ubuntu-latest
+
 
 
     steps:
 
 
       - name: Run BlackRams WATCHER
+
         uses: actions/github-script@v7
+
         with:
+
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           script: |
+
             await github.rest.actions.createWorkflowDispatch({
+
               owner: context.repo.owner,
+
               repo: context.repo.repo,
+
               workflow_id: 'blackrams.yml',
+
               ref: 'main'
+
             })
+
 
 
       - name: Run JEF WATCHER
+
         uses: actions/github-script@v7
+
         with:
+
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           script: |
+
             await github.rest.actions.createWorkflowDispatch({
+
               owner: context.repo.owner,
+
               repo: context.repo.repo,
+
               workflow_id: 'jef.yml',
+
               ref: 'main'
+
             })
 
 
+
       - name: Run Frontale WATCHER
+
         uses: actions/github-script@v7
+
         with:
+
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           script: |
+
             await github.rest.actions.createWorkflowDispatch({
+
               owner: context.repo.owner,
+
               repo: context.repo.repo,
+
               workflow_id: 'frontale.yml',
+
               ref: 'main'
+
+            })
+
+
+
+      - name: Run JETS WATCHER
+
+        uses: actions/github-script@v7
+
+        with:
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+          script: |
+
+            await github.rest.actions.createWorkflowDispatch({
+
+              owner: context.repo.owner,
+
+              repo: context.repo.repo,
+
+              workflow_id: 'jets.yml',
+
+              ref: 'main'
+
             })
