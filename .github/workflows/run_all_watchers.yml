@@ -21,39 +21,46 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
-
       - name: install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: run all watchers
+      - name: run all watchers (safe mode)
+        id: run
         run: |
-          python watch_jef.py
-          python watch_frontale.py
-          python watch_blackrams.py
-          python watch_jets.py
+          set +e
 
-      - name: commit updated seen files
+          echo "=== START WATCHERS ==="
+
+          python watch_jef.py
+          echo "[jef] exit=$?"
+
+          python watch_frontale.py
+          echo "[frontale] exit=$?"
+
+          python watch_blackrams.py
+          echo "[blackrams] exit=$?"
+
+          python watch_jets.py
+          echo "[jets] exit=$?"
+
+          echo "=== DONE WATCHERS ==="
+
+      - name: commit seen files
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
 
           git add seen*.json
-
           git diff --cached --quiet || git commit -m "update seen"
 
           git pull --rebase origin main
           git push origin main
 
-      - name: notify error
+      - name: error notify (only if hard failure)
         if: failure()
         run: |
           curl -H "Content-Type: application/json" \
           -d '{
-            "content":"⚠️ RUN ALL WATCHERS FAILED\nhttps://github.com/${{ github.repository }}/actions"
+            "content":"⚠️ RUN ALL WATCHERS HARD FAILURE\nhttps://github.com/${{ github.repository }}/actions"
           }' \
           ${{ secrets.ERROR_WEBHOOK }}
