@@ -24,23 +24,28 @@ jobs:
       - name: install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: run all watchers (safe mode)
+      - name: run all watchers (stable mode)
         id: run
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          FRONTale_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
+          BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
+          JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
         run: |
           set +e
 
           echo "=== START WATCHERS ==="
 
-          DISCORD_WEBHOOK="${{ secrets.DISCORD_WEBHOOK }}" python watch_jef.py
+          python watch_jef.py
           echo "[jef] exit=$?"
 
-          FRONTale_WEBHOOK="${{ secrets.FRONTale_WEBHOOK }}" python watch_frontale.py
+          python watch_frontale.py
           echo "[frontale] exit=$?"
 
-          BLACKRAMS_WEBHOOK="${{ secrets.BLACKRAMS_WEBHOOK }}" python watch_blackrams.py
+          python watch_blackrams.py
           echo "[blackrams] exit=$?"
 
-          JETS_WEBHOOK="${{ secrets.JETS_WEBHOOK }}" python watch_jets.py
+          python watch_jets.py
           echo "[jets] exit=$?"
 
           echo "=== DONE WATCHERS ==="
@@ -51,12 +56,13 @@ jobs:
           git config user.email github-actions@github.com
 
           git add seen*.json
+
           git diff --cached --quiet || git commit -m "update seen"
 
           git pull --rebase origin main
           git push origin main
 
-      - name: error notify (only if hard failure)
+      - name: error notify (hard failure only)
         if: failure()
         run: |
           curl -H "Content-Type: application/json" \
