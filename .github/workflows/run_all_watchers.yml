@@ -3,19 +3,20 @@ name: RUN ALL WATCHERS
 on:
   workflow_dispatch:
 
+
 concurrency:
   group: run-all-watchers
   cancel-in-progress: false
+
+
+permissions:
+  contents: write
 
 
 jobs:
   run:
 
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
 
     steps:
 
@@ -31,27 +32,50 @@ jobs:
 
 
       - name: JEF
+        id: jef
+        continue-on-error: true
         run: python watch_jef.py
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
 
       - name: Frontale
+        id: frontale
+        continue-on-error: true
         run: python watch_frontale.py
         env:
           FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
 
 
       - name: BlackRams
+        id: blackrams
+        continue-on-error: true
         run: python watch_blackrams.py
         env:
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
 
 
       - name: Jets
+        id: jets
+        continue-on-error: true
         run: python watch_jets.py
         env:
           JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
+
+
+      - name: Error notify
+        if: |
+          steps.jef.outcome == 'failure' ||
+          steps.frontale.outcome == 'failure' ||
+          steps.blackrams.outcome == 'failure' ||
+          steps.jets.outcome == 'failure'
+
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "content":"⚠️ NEWS WATCHER ERROR\n確認してください\nhttps://github.com/${{ github.repository }}/actions"
+          }' \
+          ${{ secrets.ERROR_WEBHOOK }}
 
 
       - name: save
