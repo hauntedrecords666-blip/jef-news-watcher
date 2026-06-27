@@ -16,6 +16,9 @@ HEADERS = {
 
 
 
+# -------------------------
+# seen管理
+# -------------------------
 def load_seen():
 
     try:
@@ -27,7 +30,8 @@ def load_seen():
 
             return set(json.load(f))
 
-    except:
+
+    except FileNotFoundError:
 
         return set()
 
@@ -50,23 +54,21 @@ def save_seen(seen):
 
 
 
+# -------------------------
+# 記事取得
+# -------------------------
 def fetch_list():
 
-    try:
 
-        r = requests.get(
-            LIST_URL,
-            headers=HEADERS,
-            timeout=10
-        )
+    r = requests.get(
+        LIST_URL,
+        headers=HEADERS,
+        timeout=10
+    )
 
-        if r.status_code != 200:
 
-            return []
+    r.raise_for_status()
 
-    except:
-
-        return []
 
 
     soup = BeautifulSoup(
@@ -75,7 +77,9 @@ def fetch_list():
     )
 
 
+
     articles = []
+
 
 
     for a in soup.select("a[href]"):
@@ -105,6 +109,7 @@ def fetch_list():
         url = url.split("?")[0]
 
 
+
         title = a.get_text(
             " ",
             strip=True
@@ -125,43 +130,68 @@ def fetch_list():
         )
 
 
+
     return articles
 
 
 
-
+# -------------------------
+# Discord送信
+# -------------------------
 def send_discord(article):
 
-    try:
 
-        requests.post(
-            os.environ["JETS_WEBHOOK"],
-            json={
-                "content":
+    webhook = os.environ.get(
+        "JETS_WEBHOOK"
+    )
+
+
+    if not webhook:
+
+        raise Exception(
+            "JETS_WEBHOOK missing"
+        )
+
+
+
+    res = requests.post(
+
+        webhook,
+
+        json={
+            "content":
                 f"【千葉ジェッツNEWS更新】\n"
                 f"{article['title']}\n"
                 f"{article['url']}"
-            },
-            timeout=10
-        )
+        },
+
+        timeout=10
+
+    )
 
 
-    except Exception as e:
-
-        print(
-            "discord error:",
-            e
-        )
+    res.raise_for_status()
 
 
 
-
+# -------------------------
+# main
+# -------------------------
 def main():
+
 
     seen = load_seen()
 
 
+
     articles = fetch_list()
+
+
+
+    print(
+        "articles:",
+        len(articles)
+    )
 
 
 
@@ -177,9 +207,17 @@ def main():
 
 
 
+    print(
+        "new:",
+        len(new_articles)
+    )
+
+
+
     # 初回暴発防止
 
     if not seen and new_articles:
+
 
         for a in new_articles:
 
@@ -190,19 +228,27 @@ def main():
 
         save_seen(seen)
 
-        print("initial skip")
+
+        print(
+            "initial skip"
+        )
+
 
         return
-
 
 
 
     for article in reversed(new_articles):
 
 
-        send_discord(
-            article
+        print(
+            "sending:",
+            article["title"]
         )
+
+
+        send_discord(article)
+
 
 
         seen.add(
@@ -212,6 +258,12 @@ def main():
 
 
     save_seen(seen)
+
+
+
+    print(
+        "done"
+    )
 
 
 
