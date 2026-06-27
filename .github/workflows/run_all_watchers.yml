@@ -24,15 +24,46 @@ permissions:
 jobs:
 
 
-  run:
+  watchers:
 
 
     runs-on: ubuntu-latest
 
 
+    strategy:
+
+      fail-fast: false
+
+      matrix:
+
+        include:
+
+          - name: jef
+            script: watch_jef.py
+            seen: seen.json
+            webhook: DISCORD_WEBHOOK
+
+
+          - name: frontale
+            script: watch_frontale.py
+            seen: seen_frontale.json
+            webhook: FRONTale_WEBHOOK
+
+
+          - name: blackrams
+            script: watch_blackrams.py
+            seen: seen_blackrams.json
+            webhook: BLACKRAMS_WEBHOOK
+
+
+          - name: jets
+            script: watch_jets.py
+            seen: seen_jets.json
+            webhook: JETS_WEBHOOK
+
+
 
     steps:
-
 
 
       - uses: actions/checkout@v4
@@ -53,79 +84,76 @@ jobs:
 
 
 
-      - name: JEF
+      - name: run watcher
 
-        id: jef
-
-        continue-on-error: true
-
-        run: python watch_jef.py
-
-        env:
-
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-
-
-
-      - name: Frontale
-
-        id: frontale
+        id: watcher
 
         continue-on-error: true
 
-        run: python watch_frontale.py
+        run: python ${{ matrix.script }}
 
         env:
 
+          DISCORD_WEBHOOK: ${{ secrets[matrix.webhook] }}
           FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
-
-
-
-      - name: BlackRams
-
-        id: blackrams
-
-        continue-on-error: true
-
-        run: python watch_blackrams.py
-
-        env:
-
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
-
-
-
-      - name: Jets
-
-        id: jets
-
-        continue-on-error: true
-
-        run: python watch_jets.py
-
-        env:
-
           JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
 
 
 
-      - name: Watcher error notify
+      - name: upload seen
 
-        if: |
-          steps.jef.outcome == 'failure' ||
-          steps.frontale.outcome == 'failure' ||
-          steps.blackrams.outcome == 'failure' ||
-          steps.jets.outcome == 'failure'
+        uses: actions/upload-artifact@v4
 
+        with:
+
+          name: seen-${{ matrix.name }}
+
+          path: ${{ matrix.seen }}
+
+
+
+      - name: error notify
+
+        if: steps.watcher.outcome == 'failure'
 
         run: |
 
           curl \
           -H "Content-Type: application/json" \
           -d '{
-            "content":"⚠️ NEWS WATCHER ERROR\n\n取得処理でエラーが発生しました。\n確認してください。\nhttps://github.com/${{ github.repository }}/actions"
+            "content":"⚠️ NEWS WATCHER ERROR\n${{ matrix.name }} failed\nhttps://github.com/${{ github.repository }}/actions"
           }' \
           ${{ secrets.ERROR_WEBHOOK }}
+
+
+
+
+  save:
+
+
+    needs: watchers
+
+
+    runs-on: ubuntu-latest
+
+
+
+    steps:
+
+
+      - uses: actions/checkout@v4
+
+
+
+      - name: download seen
+
+        uses: actions/download-artifact@v4
+
+        with:
+
+          pattern: seen-*
+          merge-multiple: true
 
 
 
@@ -152,16 +180,15 @@ jobs:
 
 
 
-      - name: Save error notify
+      - name: save error notify
 
         if: steps.save.outcome == 'failure'
-
 
         run: |
 
           curl \
           -H "Content-Type: application/json" \
           -d '{
-            "content":"⚠️ NEWS WATCHER SAVE ERROR\n\nGit pushに失敗しました。\n確認してください。\nhttps://github.com/${{ github.repository }}/actions"
+            "content":"⚠️ NEWS WATCHER SAVE ERROR\nGit push failed\nhttps://github.com/${{ github.repository }}/actions"
           }' \
           ${{ secrets.ERROR_WEBHOOK }}
