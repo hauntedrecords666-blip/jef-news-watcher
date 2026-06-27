@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import requests
 from bs4 import BeautifulSoup
 
@@ -12,6 +13,43 @@ SEEN_FILE = "seen_blackrams.json"
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
+
+
+
+# -------------------------
+# HTTP取得（リトライ付き）
+# -------------------------
+def fetch(url):
+
+    for i in range(3):
+
+        try:
+
+            r = requests.get(
+                url,
+                headers=HEADERS,
+                timeout=20
+            )
+
+            r.raise_for_status()
+
+            return r
+
+
+        except Exception as e:
+
+            print(
+                f"request failed {i+1}/3:",
+                e
+            )
+
+
+            if i == 2:
+
+                raise
+
+
+            time.sleep(5)
 
 
 
@@ -59,14 +97,9 @@ def save_seen(seen):
 def get_articles():
 
 
-    r = requests.get(
-        NEWS_URL,
-        headers=HEADERS,
-        timeout=10
+    r = fetch(
+        NEWS_URL
     )
-
-
-    r.raise_for_status()
 
 
 
@@ -82,6 +115,7 @@ def get_articles():
 
 
     # ニュース一覧部分だけ取得
+
     for dd in soup.select(
         "dl.infoIndex dd"
     ):
@@ -91,6 +125,7 @@ def get_articles():
             "a",
             href=True
         )
+
 
 
         if not a:
@@ -123,10 +158,12 @@ def get_articles():
 
 
         articles.append(
+
             {
                 "url": url,
                 "title": title
             }
+
         )
 
 
@@ -141,14 +178,9 @@ def get_articles():
 def get_og_image(url):
 
 
-    r = requests.get(
-        url,
-        headers=HEADERS,
-        timeout=10
+    r = fetch(
+        url
     )
-
-
-    r.raise_for_status()
 
 
 
@@ -185,6 +217,7 @@ def send_discord(article):
     webhook = os.environ.get(
         "BLACKRAMS_WEBHOOK"
     )
+
 
 
     if not webhook:
@@ -238,7 +271,7 @@ def send_discord(article):
 
         },
 
-        timeout=10
+        timeout=20
 
     )
 
@@ -298,7 +331,9 @@ def main():
 
 
 
-        send_discord(article)
+        send_discord(
+            article
+        )
 
 
 
