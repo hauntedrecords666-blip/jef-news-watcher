@@ -1,194 +1,54 @@
 name: RUN ALL WATCHERS
 
-
 on:
-
   workflow_dispatch:
 
-
-
 concurrency:
-
   group: run-all-watchers
-
   cancel-in-progress: false
 
-
-
 permissions:
-
   contents: write
 
-
-
 jobs:
-
-
   watchers:
-
-
     runs-on: ubuntu-latest
 
-
-    strategy:
-
-      fail-fast: false
-
-      matrix:
-
-        include:
-
-          - name: jef
-            script: watch_jef.py
-            seen: seen.json
-            webhook: DISCORD_WEBHOOK
-
-
-          - name: frontale
-            script: watch_frontale.py
-            seen: seen_frontale.json
-            webhook: FRONTale_WEBHOOK
-
-
-          - name: blackrams
-            script: watch_blackrams.py
-            seen: seen_blackrams.json
-            webhook: BLACKRAMS_WEBHOOK
-
-
-          - name: jets
-            script: watch_jets.py
-            seen: seen_jets.json
-            webhook: JETS_WEBHOOK
-
-
-
     steps:
-
-
       - uses: actions/checkout@v4
-
-
 
       - uses: actions/setup-python@v5
-
         with:
-
           python-version: "3.12"
 
-
+      - name: cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
 
       - name: install dependencies
-
         run: pip install requests beautifulsoup4
 
+      - name: run all watchers
+        run: |
+          python watch_jef.py
+          python watch_frontale.py
+          python watch_blackrams.py
+          python watch_jets.py
 
-
-      - name: run watcher
-
-        id: watcher
-
-        continue-on-error: true
-
-        run: python ${{ matrix.script }}
-
-        env:
-
-          DISCORD_WEBHOOK: ${{ secrets[matrix.webhook] }}
-          FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
-          BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
-          JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
-
-
-
-      - name: upload seen
-
+      - name: upload seen (optional safety backup)
         uses: actions/upload-artifact@v4
-
         with:
-
-          name: seen-${{ matrix.name }}
-
-          path: ${{ matrix.seen }}
-
-
-
-      - name: error notify
-
-        if: steps.watcher.outcome == 'failure'
-
-        run: |
-
-          curl \
-          -H "Content-Type: application/json" \
-          -d '{
-            "content":"⚠️ NEWS WATCHER ERROR\n${{ matrix.name }} failed\nhttps://github.com/${{ github.repository }}/actions"
-          }' \
-          ${{ secrets.ERROR_WEBHOOK }}
-
-
-
-
-  save:
-
-
-    needs: watchers
-
-
-    runs-on: ubuntu-latest
-
-
-
-    steps:
-
-
-      - uses: actions/checkout@v4
-
-
-
-      - name: download seen
-
-        uses: actions/download-artifact@v4
-
-        with:
-
-          pattern: seen-*
-          merge-multiple: true
-
-
-
-      - name: save
-
-        id: save
-
-        continue-on-error: true
-
-        run: |
-
-          git config user.name github-actions
-
-          git config user.email github-actions@github.com
-
-
-          git add seen*.json
-
-
-          git diff --cached --quiet || git commit -m "update seen"
-
-
-          git push origin main
-
-
+          name: seen-backup
+          path: |
+            seen*.json
 
       - name: save error notify
-
-        if: steps.save.outcome == 'failure'
-
+        if: failure()
         run: |
-
-          curl \
-          -H "Content-Type: application/json" \
+          curl -H "Content-Type: application/json" \
           -d '{
-            "content":"⚠️ NEWS WATCHER SAVE ERROR\nGit push failed\nhttps://github.com/${{ github.repository }}/actions"
+            "content":"⚠️ RUN ALL WATCHERS FAILED\nhttps://github.com/${{ github.repository }}/actions"
           }' \
           ${{ secrets.ERROR_WEBHOOK }}
