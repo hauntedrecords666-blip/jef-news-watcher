@@ -31,16 +31,16 @@ jobs:
 
           echo "=== START WATCHERS ==="
 
-          python watch_jef.py
+          DISCORD_WEBHOOK="${{ secrets.DISCORD_WEBHOOK }}" python watch_jef.py
           echo "[jef] exit=$?"
 
-          python watch_frontale.py
+          FRONTale_WEBHOOK="${{ secrets.FRONTale_WEBHOOK }}" python watch_frontale.py
           echo "[frontale] exit=$?"
 
-          python watch_blackrams.py
+          BLACKRAMS_WEBHOOK="${{ secrets.BLACKRAMS_WEBHOOK }}" python watch_blackrams.py
           echo "[blackrams] exit=$?"
 
-          python watch_jets.py
+          JETS_WEBHOOK="${{ secrets.JETS_WEBHOOK }}" python watch_jets.py
           echo "[jets] exit=$?"
 
           echo "=== DONE WATCHERS ==="
