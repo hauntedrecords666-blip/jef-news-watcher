@@ -14,19 +14,24 @@ HEADERS = {
 }
 
 
+
 # -------------------------
 # seen管理
 # -------------------------
 def load_seen():
 
     try:
+
         with open(
             SEEN_FILE,
             encoding="utf-8"
         ) as f:
+
             return set(json.load(f))
 
+
     except FileNotFoundError:
+
         return set()
 
 
@@ -53,13 +58,16 @@ def save_seen(seen):
 # -------------------------
 def fetch_list():
 
+
     r = requests.get(
         LIST_URL,
         headers=HEADERS,
         timeout=10
     )
 
+
     r.raise_for_status()
+
 
 
     soup = BeautifulSoup(
@@ -71,20 +79,27 @@ def fetch_list():
     urls = set()
 
 
+
     for a in soup.select("a[href]"):
+
 
         href = a.get("href")
 
+
         if not href:
+
             continue
 
 
+
         if "/news/detail/" in href:
+
 
             full = urljoin(
                 LIST_URL,
                 href
             ).split("?")[0]
+
 
             urls.add(full)
 
@@ -105,6 +120,7 @@ def extract_id(url):
             url.rstrip("/").split("/")[-1]
         )
 
+
     except Exception:
 
         return None
@@ -116,13 +132,25 @@ def extract_id(url):
 # -------------------------
 def fetch_detail(url):
 
+
     r = requests.get(
         url,
         headers=HEADERS,
         timeout=10
     )
 
+
+
+    # 存在しないIDは正常
+    if r.status_code == 404:
+
+        return None
+
+
+
+    # その他HTTP異常
     r.raise_for_status()
+
 
 
     soup = BeautifulSoup(
@@ -131,13 +159,21 @@ def fetch_detail(url):
     )
 
 
+
     title = (
+
         soup.find("h1")
-        or soup.find("title")
+
+        or
+
+        soup.find("title")
+
     )
 
 
+
     if not title:
+
 
         raise Exception(
             f"title not found: {url}"
@@ -151,6 +187,7 @@ def fetch_detail(url):
     )
 
 
+
     text = text.replace(
         "｜ニュース｜ジェフユナイテッド市原・千葉 公式ウェブサイト",
         ""
@@ -159,8 +196,11 @@ def fetch_detail(url):
 
 
     return {
+
         "url": url,
+
         "title": text
+
     }
 
 
@@ -170,12 +210,15 @@ def fetch_detail(url):
 # -------------------------
 def send_discord(article):
 
+
     webhook = os.environ.get(
         "DISCORD_WEBHOOK"
     )
 
 
+
     if not webhook:
+
 
         raise Exception(
             "DISCORD_WEBHOOK missing"
@@ -188,15 +231,21 @@ def send_discord(article):
         webhook,
 
         json={
+
             "content":
+
                 f"【ジェフNEWS更新】\n"
+
                 f"{article['title']}\n"
+
                 f"{article['url']}"
+
         },
 
         timeout=10
 
     )
+
 
 
     res.raise_for_status()
@@ -208,6 +257,7 @@ def send_discord(article):
 # -------------------------
 def main():
 
+
     seen = load_seen()
 
 
@@ -217,14 +267,20 @@ def main():
 
 
     ids = [
+
         extract_id(u)
+
         for u in list_urls
+
     ]
 
 
     ids = [
+
         i for i in ids
+
         if i is not None
+
     ]
 
 
@@ -234,23 +290,35 @@ def main():
 
 
     seen_ids = [
+
         extract_id(u)
+
         for u in seen
+
         if extract_id(u)
+
     ]
 
 
+
     latest_seen_id = (
+
         max(seen_ids)
+
         if seen_ids
+
         else 0
+
     )
 
 
 
     base = max(
+
         latest_list_id,
+
         latest_seen_id
+
     )
 
 
@@ -262,9 +330,14 @@ def main():
 
 
 
+    # 欠番確認用
+
     scan_range = range(
+
         base - 20,
+
         base + 50
+
     )
 
 
@@ -279,6 +352,7 @@ def main():
         url = BASE_DETAIL + str(i)
 
 
+
         if url in seen:
 
             continue
@@ -288,6 +362,7 @@ def main():
         article = fetch_detail(url)
 
 
+
         if article:
 
             candidates.append(article)
@@ -295,8 +370,11 @@ def main():
 
 
     print(
+
         "found:",
+
         len(candidates)
+
     )
 
 
@@ -320,22 +398,28 @@ def main():
             "initial skip"
         )
 
+
         return
 
 
 
     # 通知
 
-    for a in sorted(
+    for article in sorted(
+
         candidates,
+
         key=lambda x: extract_id(x["url"])
+
     ):
 
-        send_discord(a)
+
+        send_discord(article)
+
 
 
         seen.add(
-            a["url"]
+            article["url"]
         )
 
 
