@@ -1,84 +1,6 @@
-name: RUN ALL WATCHERS
-
-on:
-  workflow_dispatch:
-
-
-concurrency:
-  group: run-all-watchers
-  cancel-in-progress: false
-
-
-permissions:
-  contents: write
-
-
-jobs:
-  run:
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - uses: actions/checkout@v4
-
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-
-      - run: pip install requests beautifulsoup4
-
-
-      - name: JEF
-        id: jef
-        continue-on-error: true
-        run: python watch_jef.py
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-
-
-      - name: Frontale
-        id: frontale
-        continue-on-error: true
-        run: python watch_frontale.py
-        env:
-          FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
-
-
-      - name: BlackRams
-        id: blackrams
-        continue-on-error: true
-        run: python watch_blackrams.py
-        env:
-          BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
-
-
-      - name: Jets
-        id: jets
-        continue-on-error: true
-        run: python watch_jets.py
-        env:
-          JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
-
-
-      - name: Error notify
-        if: |
-          steps.jef.outcome == 'failure' ||
-          steps.frontale.outcome == 'failure' ||
-          steps.blackrams.outcome == 'failure' ||
-          steps.jets.outcome == 'failure'
-
-        run: |
-          curl -H "Content-Type: application/json" \
-          -d '{
-            "content":"⚠️ NEWS WATCHER ERROR\n確認してください\nhttps://github.com/${{ github.repository }}/actions"
-          }' \
-          ${{ secrets.ERROR_WEBHOOK }}
-
-
       - name: save
+        id: save
+        continue-on-error: true
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
@@ -88,3 +10,14 @@ jobs:
           git diff --cached --quiet || git commit -m "update seen"
 
           git push origin main
+
+
+      - name: Save error notify
+        if: steps.save.outcome == 'failure'
+
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "content":"⚠️ NEWS WATCHER SAVE ERROR\nGit push失敗\n確認してください\nhttps://github.com/${{ github.repository }}/actions"
+          }' \
+          ${{ secrets.ERROR_WEBHOOK }}
