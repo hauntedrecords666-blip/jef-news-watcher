@@ -4,164 +4,352 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
+
 LIST_URL = "https://jefunited.co.jp/news/list"
 BASE_DETAIL = "https://jefunited.co.jp/news/detail/"
 SEEN_FILE = "seen.json"
 
-HEADERS = {"User-Agent": "Mozilla/5.0"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
 
 
 # -------------------------
-# seen管理（正史）
+# seen管理
 # -------------------------
 def load_seen():
+
     try:
-        with open(SEEN_FILE, encoding="utf-8") as f:
+        with open(
+            SEEN_FILE,
+            encoding="utf-8"
+        ) as f:
             return set(json.load(f))
-    except:
+
+    except FileNotFoundError:
         return set()
 
 
+
 def save_seen(seen):
-    with open(SEEN_FILE, "w", encoding="utf-8") as f:
-        json.dump(sorted(list(seen)), f, ensure_ascii=False, indent=2)
+
+    with open(
+        SEEN_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            sorted(list(seen)),
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
 
 
 # -------------------------
-# list取得（補助）
+# list取得
 # -------------------------
 def fetch_list():
-    try:
-        r = requests.get(LIST_URL, headers=HEADERS, timeout=10)
-        if r.status_code != 200:
-            return []
-    except:
-        return []
 
-    soup = BeautifulSoup(r.text, "html.parser")
+    r = requests.get(
+        LIST_URL,
+        headers=HEADERS,
+        timeout=10
+    )
+
+    r.raise_for_status()
+
+
+    soup = BeautifulSoup(
+        r.text,
+        "html.parser"
+    )
+
 
     urls = set()
 
+
     for a in soup.select("a[href]"):
+
         href = a.get("href")
+
         if not href:
             continue
 
+
         if "/news/detail/" in href:
-            full = urljoin(LIST_URL, href).split("?")[0]
+
+            full = urljoin(
+                LIST_URL,
+                href
+            ).split("?")[0]
+
             urls.add(full)
 
+
+
     return list(urls)
+
 
 
 # -------------------------
 # ID抽出
 # -------------------------
 def extract_id(url):
+
     try:
-        return int(url.rstrip("/").split("/")[-1])
-    except:
+
+        return int(
+            url.rstrip("/").split("/")[-1]
+        )
+
+    except Exception:
+
         return None
+
 
 
 # -------------------------
 # 詳細取得
 # -------------------------
 def fetch_detail(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        if r.status_code != 200:
-            return None
-    except:
-        return None
 
-    soup = BeautifulSoup(r.text, "html.parser")
+    r = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=10
+    )
 
-    title = soup.find("h1") or soup.find("title")
+    r.raise_for_status()
+
+
+    soup = BeautifulSoup(
+        r.text,
+        "html.parser"
+    )
+
+
+    title = (
+        soup.find("h1")
+        or soup.find("title")
+    )
+
+
     if not title:
-        return None
 
-    text = title.get_text(" ", strip=True)
+        raise Exception(
+            f"title not found: {url}"
+        )
+
+
+
+    text = title.get_text(
+        " ",
+        strip=True
+    )
+
 
     text = text.replace(
         "｜ニュース｜ジェフユナイテッド市原・千葉 公式ウェブサイト",
         ""
     ).strip()
 
-    return {"url": url, "title": text}
+
+
+    return {
+        "url": url,
+        "title": text
+    }
+
 
 
 # -------------------------
 # Discord送信
 # -------------------------
 def send_discord(article):
-    try:
-        res = requests.post(
-            os.environ["DISCORD_WEBHOOK"],
-            json={
-                "content": f"【ジェフNEWS更新】\n{article['title']}\n{article['url']}"
-            },
-            timeout=10
+
+    webhook = os.environ.get(
+        "DISCORD_WEBHOOK"
+    )
+
+
+    if not webhook:
+
+        raise Exception(
+            "DISCORD_WEBHOOK missing"
         )
-        print("discord:", res.status_code)
-    except Exception as e:
-        print("discord error:", e)
+
+
+
+    res = requests.post(
+
+        webhook,
+
+        json={
+            "content":
+                f"【ジェフNEWS更新】\n"
+                f"{article['title']}\n"
+                f"{article['url']}"
+        },
+
+        timeout=10
+
+    )
+
+
+    res.raise_for_status()
+
 
 
 # -------------------------
-# メインロジック
+# main
 # -------------------------
 def main():
+
     seen = load_seen()
 
-    # ① list取得（補助）
+
+
     list_urls = fetch_list()
 
-    # ② ID抽出
-    ids = [extract_id(u) for u in list_urls]
-    ids = [i for i in ids if i is not None]
+
+
+    ids = [
+        extract_id(u)
+        for u in list_urls
+    ]
+
+
+    ids = [
+        i for i in ids
+        if i is not None
+    ]
+
+
 
     latest_list_id = max(ids) if ids else 0
-    latest_seen_id = max([extract_id(u) for u in seen if extract_id(u)]) if seen else 0
 
-    base = max(latest_list_id, latest_seen_id)
 
-    print("base id:", base)
 
-    # ③ 広めスキャン（取りこぼし防止）
-    scan_range = range(base - 20, base + 50)
+    seen_ids = [
+        extract_id(u)
+        for u in seen
+        if extract_id(u)
+    ]
+
+
+    latest_seen_id = (
+        max(seen_ids)
+        if seen_ids
+        else 0
+    )
+
+
+
+    base = max(
+        latest_list_id,
+        latest_seen_id
+    )
+
+
+
+    print(
+        "base id:",
+        base
+    )
+
+
+
+    scan_range = range(
+        base - 20,
+        base + 50
+    )
+
+
 
     candidates = []
 
+
+
     for i in scan_range:
+
+
         url = BASE_DETAIL + str(i)
 
+
         if url in seen:
+
             continue
+
+
 
         article = fetch_detail(url)
 
+
         if article:
+
             candidates.append(article)
 
-    print("found:", len(candidates))
 
-    # ④ 初回暴発防止
+
+    print(
+        "found:",
+        len(candidates)
+    )
+
+
+
+    # 初回暴発防止
+
     if not seen and candidates:
+
+
         for a in candidates:
-            seen.add(a["url"])
+
+            seen.add(
+                a["url"]
+            )
+
+
         save_seen(seen)
-        print("initial skip")
+
+
+        print(
+            "initial skip"
+        )
+
         return
 
-    # ⑤ 通知
-    for a in sorted(candidates, key=lambda x: extract_id(x["url"])):
+
+
+    # 通知
+
+    for a in sorted(
+        candidates,
+        key=lambda x: extract_id(x["url"])
+    ):
+
         send_discord(a)
-        seen.add(a["url"])
+
+
+        seen.add(
+            a["url"]
+        )
+
+
 
     save_seen(seen)
-    print("done")
+
+
+
+    print(
+        "done"
+    )
+
 
 
 if __name__ == "__main__":
+
     main()
