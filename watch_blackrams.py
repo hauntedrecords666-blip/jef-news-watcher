@@ -9,18 +9,28 @@ BASE_URL = "https://blackrams-tokyo.com"
 
 SEEN_FILE = "seen_blackrams.json"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
 
 
+
+# -------------------------
+# seen管理
+# -------------------------
 def load_seen():
 
     try:
+
         with open(
             SEEN_FILE,
             encoding="utf-8"
         ) as f:
+
             return set(json.load(f))
 
-    except:
+
+    except FileNotFoundError:
 
         return set()
 
@@ -35,7 +45,7 @@ def save_seen(seen):
     ) as f:
 
         json.dump(
-            list(seen),
+            sorted(list(seen)),
             f,
             ensure_ascii=False,
             indent=2
@@ -43,26 +53,21 @@ def save_seen(seen):
 
 
 
+# -------------------------
+# 記事取得
+# -------------------------
 def get_articles():
 
-    try:
 
-        r = requests.get(
-            NEWS_URL,
-            headers={
-                "User-Agent": "Mozilla/5.0"
-            },
-            timeout=10
-        )
-
-    except:
-
-        return []
+    r = requests.get(
+        NEWS_URL,
+        headers=HEADERS,
+        timeout=10
+    )
 
 
-    if r.status_code != 200:
+    r.raise_for_status()
 
-        return []
 
 
     soup = BeautifulSoup(
@@ -71,7 +76,9 @@ def get_articles():
     )
 
 
+
     articles = []
+
 
 
     # ニュース一覧部分だけ取得
@@ -108,6 +115,7 @@ def get_articles():
         )
 
 
+
         if not title:
 
             continue
@@ -122,27 +130,25 @@ def get_articles():
         )
 
 
+
     return articles
 
 
 
-
+# -------------------------
+# OG画像取得
+# -------------------------
 def get_og_image(url):
 
-    try:
 
-        r = requests.get(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0"
-            },
-            timeout=10
-        )
+    r = requests.get(
+        url,
+        headers=HEADERS,
+        timeout=10
+    )
 
 
-    except:
-
-        return None
+    r.raise_for_status()
 
 
 
@@ -152,10 +158,12 @@ def get_og_image(url):
     )
 
 
+
     og = soup.find(
         "meta",
         property="og:image"
     )
+
 
 
     if og:
@@ -163,37 +171,34 @@ def get_og_image(url):
         return og.get("content")
 
 
+
     return None
 
 
 
+# -------------------------
+# Discord送信
+# -------------------------
+def send_discord(article):
 
 
-seen = load_seen()
+    webhook = os.environ.get(
+        "BLACKRAMS_WEBHOOK"
+    )
 
 
-articles = get_articles()
+    if not webhook:
 
+        raise Exception(
+            "BLACKRAMS_WEBHOOK missing"
+        )
 
-
-new_articles = [
-
-    a
-
-    for a in articles
-
-    if a["url"] not in seen
-
-]
-
-
-
-for article in reversed(new_articles):
 
 
     image = get_og_image(
         article["url"]
     )
+
 
 
     embed = {
@@ -208,6 +213,7 @@ for article in reversed(new_articles):
     }
 
 
+
     if image:
 
         embed["image"] = {
@@ -218,9 +224,9 @@ for article in reversed(new_articles):
 
 
 
-    requests.post(
+    res = requests.post(
 
-        os.environ["BLACKRAMS_WEBHOOK"],
+        webhook,
 
         json={
 
@@ -237,10 +243,81 @@ for article in reversed(new_articles):
     )
 
 
-    seen.add(
-        article["url"]
+
+    res.raise_for_status()
+
+
+
+# -------------------------
+# main
+# -------------------------
+def main():
+
+
+    seen = load_seen()
+
+
+
+    articles = get_articles()
+
+
+
+    print(
+        "articles:",
+        len(articles)
     )
 
 
 
-save_seen(seen)
+    new_articles = [
+
+        a
+
+        for a in articles
+
+        if a["url"] not in seen
+
+    ]
+
+
+
+    print(
+        "new:",
+        len(new_articles)
+    )
+
+
+
+    for article in reversed(new_articles):
+
+
+        print(
+            "sending:",
+            article["title"]
+        )
+
+
+
+        send_discord(article)
+
+
+
+        seen.add(
+            article["url"]
+        )
+
+
+
+    save_seen(seen)
+
+
+
+    print(
+        "done"
+    )
+
+
+
+if __name__ == "__main__":
+
+    main()
