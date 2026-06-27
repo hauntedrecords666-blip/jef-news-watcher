@@ -1,140 +1,42 @@
-name: RUN ALL WATCHERS
-
-
-on:
-
-  workflow_dispatch:
-
-
-
-permissions:
-
-  actions: write
-
-
-
 jobs:
-
-
-  trigger:
-
-
+  run:
     runs-on: ubuntu-latest
-
-
 
     steps:
 
+      - uses: actions/checkout@v4
 
-
-      - name: Run JEF WATCHER
-
-        uses: actions/github-script@v7
-
+      - uses: actions/setup-python@v5
         with:
+          python-version: "3.12"
 
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: pip install requests beautifulsoup4
 
-          script: |
+      - name: JEF
+        run: python watch_jef.py
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
-            await github.rest.actions.createWorkflowDispatch({
+      - name: Frontale
+        run: python watch_frontale.py
+        env:
+          FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
 
-              owner: context.repo.owner,
+      - name: BlackRams
+        run: python watch_blackrams.py
+        env:
+          BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
 
-              repo: context.repo.repo,
+      - name: Jets
+        run: python watch_jets.py
+        env:
+          JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
 
-              workflow_id: 'jef.yml',
-
-              ref: 'main'
-
-            })
-
-
-
-      - name: Wait
-
-        run: sleep 20
-
-
-
-      - name: Run Frontale WATCHER
-
-        uses: actions/github-script@v7
-
-        with:
-
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-          script: |
-
-            await github.rest.actions.createWorkflowDispatch({
-
-              owner: context.repo.owner,
-
-              repo: context.repo.repo,
-
-              workflow_id: 'frontale.yml',
-
-              ref: 'main'
-
-            })
-
-
-
-      - name: Wait
-
-        run: sleep 20
-
-
-
-      - name: Run BlackRams WATCHER
-
-        uses: actions/github-script@v7
-
-        with:
-
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-          script: |
-
-            await github.rest.actions.createWorkflowDispatch({
-
-              owner: context.repo.owner,
-
-              repo: context.repo.repo,
-
-              workflow_id: 'blackrams.yml',
-
-              ref: 'main'
-
-            })
-
-
-
-      - name: Wait
-
-        run: sleep 20
-
-
-
-      - name: Run JETS WATCHER
-
-        uses: actions/github-script@v7
-
-        with:
-
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-          script: |
-
-            await github.rest.actions.createWorkflowDispatch({
-
-              owner: context.repo.owner,
-
-              repo: context.repo.repo,
-
-              workflow_id: 'jets.yml',
-
-              ref: 'main'
-
-            })
+      - name: save
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add seen*.json
+          git diff --cached --quiet || git commit -m "update seen"
+          git pull --rebase origin main
+          git push
