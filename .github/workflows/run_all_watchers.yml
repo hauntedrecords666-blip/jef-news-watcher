@@ -1,42 +1,66 @@
+name: RUN ALL WATCHERS
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: run-all-watchers
+  cancel-in-progress: false
+
+
 jobs:
   run:
+
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
 
     steps:
 
       - uses: actions/checkout@v4
 
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+
       - run: pip install requests beautifulsoup4
+
 
       - name: JEF
         run: python watch_jef.py
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
+
       - name: Frontale
         run: python watch_frontale.py
         env:
           FRONTALE_WEBHOOK: ${{ secrets.FRONTale_WEBHOOK }}
+
 
       - name: BlackRams
         run: python watch_blackrams.py
         env:
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
 
+
       - name: Jets
         run: python watch_jets.py
         env:
           JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
 
+
       - name: save
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
+
           git add seen*.json
+
           git diff --cached --quiet || git commit -m "update seen"
-          git pull --rebase origin main
-          git push
+
+          git push origin main
