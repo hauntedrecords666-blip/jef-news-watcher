@@ -2,8 +2,6 @@ name: RUN ALL WATCHERS
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/30 23-14 * * *"  # JST 8:00〜23:59想定なら調整して
 
 concurrency:
   group: run-all-watchers
