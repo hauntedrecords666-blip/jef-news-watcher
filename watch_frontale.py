@@ -176,14 +176,14 @@ def send_discord(article):
 
 
     webhook = os.environ.get(
-        "FRONtale_WEBHOOK"
+        "FRONTALE_WEBHOOK"
     )
 
 
     if not webhook:
 
         raise Exception(
-            "FRONtale_WEBHOOK missing"
+            "FRONTALE_WEBHOOK missing"
         )
 
 
