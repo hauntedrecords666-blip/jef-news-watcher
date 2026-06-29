@@ -7,76 +7,180 @@ concurrency:
   group: run-all-watchers
   cancel-in-progress: true
 
+
 permissions:
   contents: write
 
+
+
 jobs:
+
   watchers:
+
     runs-on: ubuntu-latest
 
+
     steps:
+
+
       - uses: actions/checkout@v4
 
+
+
       - uses: actions/setup-python@v5
+
         with:
           python-version: "3.12"
 
+
+
       - name: install dependencies
+
         run: |
+
           python -m pip install --upgrade pip
+
           pip install requests beautifulsoup4
 
+
+
+
+
       - name: run all watchers (stable mode)
+
         id: run
+
+
         env:
+
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          FRONTALE_WEBHOOK: ${{ secrets.FRONTALE_WEBHOOK }}
+
+          FRONTALE_WEBHOOK: ${{ secrets.FRONTAALE_WEBHOOK }}
+
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
+
           JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
+
+          ELGOLAZO_WEBHOOK: ${{ secrets.ELGOLAZO_WEBHOOK }}
+
+
+
         run: |
+
+
           set +e
+
 
           echo "=== START WATCHERS ==="
 
+
+
           python watch_jef.py
+
           JEF_EXIT=$?
+
           echo "[jef] exit=$JEF_EXIT"
 
+
+
+
           python watch_frontale.py
+
           FRONT_EXIT=$?
+
           echo "[frontale] exit=$FRONT_EXIT"
 
+
+
+
           python watch_blackrams.py
+
           BR_EXIT=$?
+
           echo "[blackrams] exit=$BR_EXIT"
 
+
+
+
           python watch_jets.py
+
           JETS_EXIT=$?
+
           echo "[jets] exit=$JETS_EXIT"
+
+
+
+
+          python watch_elgolazo.py
+
+          ELG_EXIT=$?
+
+          echo "[elgolazo] exit=$ELG_EXIT"
+
+
+
 
           echo "=== DONE WATCHERS ==="
 
-          # どれか落ちてても全体は成功扱いにする（通知だけ飛ばす設計）
+
+
+          # どれか失敗しても全体成功扱い
+
           exit 0
 
+
+
+
+
       - name: commit seen files
+
+
         run: |
+
+
           git config user.name github-actions
+
           git config user.email github-actions@github.com
+
+
 
           git add seen*.json
 
+
+
           git diff --cached --quiet && exit 0
+
+
+
           git commit -m "update seen"
 
+
+
           git pull --rebase origin main
+
+
+
           git push origin main
 
+
+
+
+
       - name: error notify (hard failure only)
+
+
         if: failure()
+
+
         run: |
+
+
           curl -H "Content-Type: application/json" \
+
           -d '{
+
             "content":"⚠️ RUN ALL WATCHERS HARD FAILURE\nhttps://github.com/${{ github.repository }}/actions"
+
           }' \
+
           "${{ secrets.ERROR_WEBHOOK }}"
