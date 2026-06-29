@@ -92,7 +92,6 @@ def fetch_list():
     )
 
 
-
     r = requests.get(
 
         LIST_URL,
@@ -132,17 +131,61 @@ def fetch_list():
 
 
 
-    for a in soup.find_all(
+    # UO+カード
 
-        "a",
+    items = soup.select(
 
-        href=True
+        ".l-plus__item"
 
-    ):
+    )
 
 
 
-        href = a["href"]
+    print(
+
+        "[LIST] cards:",
+
+        len(items)
+
+    )
+
+
+
+
+
+    for item in items:
+
+
+
+        link = item.find(
+
+            "a",
+
+            href=True
+
+        )
+
+
+
+        if not link:
+
+            continue
+
+
+
+
+        href = link.get(
+
+            "href"
+
+        )
+
+
+
+        if "/my/uoplus/detail/" not in href:
+
+            continue
+
 
 
 
@@ -155,14 +198,6 @@ def fetch_list():
         ).split("?")[0]
 
 
-
-
-
-        # UO+詳細だけ
-
-        if "/my/uoplus/detail/" not in url:
-
-            continue
 
 
 
@@ -181,7 +216,8 @@ def fetch_list():
 
 
 
-        title = a.get_text(
+
+        title = item.get_text(
 
             " ",
 
@@ -217,7 +253,7 @@ def fetch_list():
 
 
 
-    # URL重複排除
+    # 重複排除
 
     result = []
 
@@ -240,7 +276,6 @@ def fetch_list():
             article["url"]
 
         )
-
 
 
         result.append(
@@ -320,8 +355,7 @@ def send_discord(article):
 
 
 
-
-    r = requests.post(
+    res = requests.post(
 
         webhook,
 
@@ -347,13 +381,13 @@ def send_discord(article):
 
         "[DISCORD] status:",
 
-        r.status_code
+        res.status_code
 
     )
 
 
 
-    r.raise_for_status()
+    res.raise_for_status()
 
 
 
@@ -431,7 +465,6 @@ def main():
     if not seen and new_articles:
 
 
-
         print(
 
             "[INIT] skip notification"
@@ -463,7 +496,6 @@ def main():
 
 
 
-
     for article in reversed(new_articles):
 
 
@@ -484,7 +516,6 @@ def main():
 
 
         except Exception as e:
-
 
 
             print(
