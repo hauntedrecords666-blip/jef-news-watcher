@@ -1,14 +1,79 @@
+import json
+import os
+import requests
+
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+
+
 LIST_URL = "https://jefunited.co.jp/my/uoplus/"
+
 SEEN_FILE = "seen_united_online_plus.json"
+
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
 
-def fetch_list():
+
+
+
+# -------------------------
+# seen
+# -------------------------
+
+def load_seen():
+
+    try:
+
+        with open(
+            SEEN_FILE,
+            encoding="utf-8"
+        ) as f:
+
+            return set(json.load(f))
+
+
+    except FileNotFoundError:
+
+        return set()
+
+
+
+
+
+def save_seen(seen):
+
+    with open(
+        SEEN_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            sorted(list(seen)),
+            f,
+            ensure_ascii=False,
+            indent=2
+        )
+
+
+
+
+
+
+
+# -------------------------
+# UO+一覧取得
+# -------------------------
+
+def fetch_articles():
+
 
     print("[LIST] fetching...")
+
 
     r = requests.get(
         LIST_URL,
@@ -16,12 +81,15 @@ def fetch_list():
         timeout=10
     )
 
+
     print(
         "[LIST] status:",
         r.status_code
     )
 
+
     r.raise_for_status()
+
 
 
     soup = BeautifulSoup(
@@ -30,8 +98,12 @@ def fetch_list():
     )
 
 
+
     articles = []
 
+
+
+    # UO+新着カード
 
     for item in soup.select(
         ".l-plus__item"
@@ -45,13 +117,17 @@ def fetch_list():
 
 
         if not a:
+
             continue
+
+
 
 
         url = urljoin(
             LIST_URL,
             a["href"]
-        )
+        ).split("?")[0]
+
 
 
         if "/my/uoplus/detail/" not in url:
@@ -59,10 +135,22 @@ def fetch_list():
             continue
 
 
+
+
+
         title = item.get_text(
             " ",
             strip=True
         )
+
+
+
+        if not title:
+
+            title = "UNITED ONLINE PLUS"
+
+
+
 
 
         articles.append(
@@ -73,16 +161,239 @@ def fetch_list():
         )
 
 
+
+
+
+    # 重複排除
+
+    result = []
+
+    exists = set()
+
+
+
+    for article in articles:
+
+
+        if article["url"] in exists:
+
+            continue
+
+
+
+        exists.add(
+            article["url"]
+        )
+
+
+        result.append(article)
+
+
+
+
+
     print(
         "[LIST] articles:",
-        len(articles)
+        len(result)
     )
 
 
     print(
         "[LIST] sample:",
-        articles[:5]
+        result[:5]
     )
 
 
-    return articles
+
+    return result
+
+
+
+
+
+
+
+# -------------------------
+# Discord
+# -------------------------
+
+def send_discord(article):
+
+
+    webhook = os.environ.get(
+        "UNITEDONLINEPLUS_WEBHOOK"
+    )
+
+
+    if not webhook:
+
+        raise Exception(
+            "UNITEDONLINEPLUS_WEBHOOK missing"
+        )
+
+
+
+
+
+    res = requests.post(
+
+        webhook,
+
+        json={
+
+            "content":
+
+                "【UNITED ONLINE PLUS更新】\n"
+                f"{article['title']}\n"
+                f"{article['url']}"
+
+        },
+
+        timeout=10
+
+    )
+
+
+
+    print(
+        "[DISCORD]",
+        res.status_code
+    )
+
+
+    res.raise_for_status()
+
+
+
+
+
+
+
+# -------------------------
+# main
+# -------------------------
+
+def main():
+
+
+    print(
+        "=== START UNITED ONLINE PLUS ==="
+    )
+
+
+
+    seen = load_seen()
+
+
+
+    print(
+        "[SEEN]",
+        len(seen)
+    )
+
+
+
+
+
+    articles = fetch_articles()
+
+
+
+
+
+    new_articles = [
+
+        a
+
+        for a in articles
+
+        if a["url"] not in seen
+
+    ]
+
+
+
+
+
+    print(
+        "[NEW]",
+        len(new_articles)
+    )
+
+
+
+
+
+
+
+    # 初回登録
+
+    if not seen and new_articles:
+
+
+        print(
+            "[INIT] skip notification"
+        )
+
+
+        for article in new_articles:
+
+            seen.add(
+                article["url"]
+            )
+
+
+        save_seen(seen)
+
+        return
+
+
+
+
+
+
+
+
+    for article in reversed(new_articles):
+
+
+        try:
+
+            send_discord(article)
+
+
+            seen.add(
+                article["url"]
+            )
+
+
+
+        except Exception as e:
+
+
+            print(
+                "[SEND ERROR]",
+                e
+            )
+
+
+
+
+
+
+    save_seen(seen)
+
+
+
+    print(
+        "=== DONE UNITED ONLINE PLUS ==="
+    )
+
+
+
+
+
+
+if __name__ == "__main__":
+
+    main()
