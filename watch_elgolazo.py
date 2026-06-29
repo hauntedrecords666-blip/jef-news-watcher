@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 
 
+
 NEWS_URL = (
     "https://elgolazo.jp/products/list"
     "?category_id=1084"
@@ -19,6 +20,8 @@ SEEN_FILE = "seen_elgolazo.json"
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
+
+
 
 
 
@@ -63,6 +66,132 @@ def save_seen(seen):
 
 
 
+
+
+# -------------------------
+# Discord送信
+# -------------------------
+
+def send_discord(item):
+
+
+    webhook = os.environ.get(
+        "ELGOLAZO_WEBHOOK"
+    )
+
+
+    if not webhook:
+
+        raise Exception(
+            "ELGOLAZO_WEBHOOK missing"
+        )
+
+
+
+    payload = {
+
+        "content":
+            "【EL GOLAZO 新着】\n"
+            f"{item['title']}\n"
+            f"{item['url']}"
+
+    }
+
+
+
+    r = requests.post(
+
+        webhook,
+
+        json=payload,
+
+        timeout=10
+
+    )
+
+
+    r.raise_for_status()
+
+
+
+
+
+
+
+# -------------------------
+# 商品詳細タイトル取得
+# -------------------------
+
+def get_title(url):
+
+
+    try:
+
+        r = requests.get(
+
+            url,
+
+            headers=HEADERS,
+
+            timeout=10
+
+        )
+
+
+        r.raise_for_status()
+
+
+
+        soup = BeautifulSoup(
+
+            r.text,
+
+            "html.parser"
+
+        )
+
+
+
+        title = soup.find("title")
+
+
+
+        if title:
+
+            return title.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+
+
+    except Exception as e:
+
+
+        print(
+
+            "title error:",
+
+            url,
+
+            e
+
+        )
+
+
+
+    return "EL GOLAZO 商品"
+
+
+
+
+
+
+
+
 # -------------------------
 # 商品取得
 # -------------------------
@@ -70,10 +199,15 @@ def save_seen(seen):
 def get_products():
 
 
+
     r = requests.get(
+
         NEWS_URL,
+
         headers=HEADERS,
+
         timeout=10
+
     )
 
 
@@ -82,8 +216,11 @@ def get_products():
 
 
     soup = BeautifulSoup(
+
         r.text,
+
         "html.parser"
+
     )
 
 
@@ -92,17 +229,23 @@ def get_products():
 
 
 
+
     for a in soup.select(
+
         "a[href]"
+
     ):
+
 
 
         href = a.get("href")
 
 
+
         if not href:
 
             continue
+
 
 
 
@@ -116,19 +259,30 @@ def get_products():
 
 
 
-        # 商品詳細URL想定
+
+
+        # 商品詳細URL
+
         if not re.search(
+
             r"/products/detail/\d+",
+
             url
+
         ):
 
             continue
 
 
 
+
+
         title = a.get_text(
+
             " ",
+
             strip=True
+
         )
 
 
@@ -139,86 +293,59 @@ def get_products():
 
 
 
+
+
         products.append(
+
             {
+
                 "url": url,
+
                 "title": title
+
             }
+
         )
 
 
 
-    # 重複排除
+
+
+
+    # URL重複排除
 
     result = []
 
-    seen_urls = set()
+    exists = set()
+
 
 
     for p in products:
 
 
-        if p["url"] in seen_urls:
+
+        if p["url"] in exists:
 
             continue
 
 
-        seen_urls.add(
+
+        exists.add(
+
             p["url"]
+
         )
+
 
 
         result.append(p)
 
 
 
+
     return result
 
 
-
-
-
-# -------------------------
-# 詳細タイトル取得
-# -------------------------
-
-def get_title(url):
-
-    try:
-
-        r = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=10
-        )
-
-
-        soup = BeautifulSoup(
-            r.text,
-            "html.parser"
-        )
-
-
-        title = soup.find("title")
-
-
-        if title:
-
-            return title.get_text(
-                " ",
-                strip=True
-            )
-
-
-    except Exception as e:
-
-        print(
-            "title error",
-            e
-        )
-
-
-    return "EL GOLAZO 商品"
 
 
 
@@ -231,23 +358,32 @@ def get_title(url):
 def main():
 
 
+
     seen = load_seen()
+
 
 
     products = get_products()
 
 
 
+
     print(
+
         "DEBUG products:",
+
         len(products)
+
     )
+
 
 
 
     new_products = [
 
-        p for p in products
+        p
+
+        for p in products
 
         if p["url"] not in seen
 
@@ -255,27 +391,67 @@ def main():
 
 
 
+
+
     print(
+
         "DEBUG new:",
+
         len(new_products)
+
     )
+
+
+
 
 
 
     for p in reversed(new_products):
 
 
+
         print(
-            "NEW:",
+
+            "sending:",
+
             p["title"],
+
             p["url"]
+
         )
 
 
 
-        seen.add(
-            p["url"]
-        )
+        try:
+
+
+            send_discord(p)
+
+
+
+            seen.add(
+
+                p["url"]
+
+            )
+
+
+
+        except Exception as e:
+
+
+
+            print(
+
+                "send error:",
+
+                e
+
+            )
+
+
+
+
 
 
 
@@ -284,12 +460,18 @@ def main():
 
 
     print(
+
         "done"
+
     )
 
 
 
 
+
+
+
 if __name__ == "__main__":
+
 
     main()
