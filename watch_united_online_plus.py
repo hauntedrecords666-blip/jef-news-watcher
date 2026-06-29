@@ -1,43 +1,83 @@
 import requests
+import re
 
 
 URL = "https://jefunited.co.jp/my/uoplus/"
 
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+
+
 r = requests.get(
     URL,
-    headers={
-        "User-Agent": "Mozilla/5.0"
-    },
+    headers=HEADERS,
     timeout=10
 )
 
-print("status", r.status_code)
 
-with open(
-    "uoplus_debug.html",
-    "w",
-    encoding="utf-8"
-) as f:
+r.raise_for_status()
 
-    f.write(r.text)
+
+
+html = r.text
+
 
 
 print(
-    "detail count:",
-    r.text.count("/my/uoplus/detail/")
+    "html length:",
+    len(html)
 )
 
-print(
-    "column count:",
-    r.text.count("column")
-)
+
+
+patterns = [
+
+    r'https?://[^"\']+',
+
+    r'["\']([^"\']*(?:api|ajax|json|uoplus)[^"\']*)["\']',
+
+    r'fetch\((.*?)\)',
+
+    r'\$\.ajax\((.*?)\)',
+
+]
+
+
+
+found = set()
+
+
+
+for pattern in patterns:
+
+
+    for m in re.findall(
+        pattern,
+        html,
+        re.I
+    ):
+
+
+        if isinstance(m, tuple):
+
+            m = m[0]
+
+
+        found.add(m)
+
+
+
+
 
 print(
-    "report count:",
-    r.text.count("report")
+    "=== FOUND ==="
 )
 
-print(
-    "video count:",
-    r.text.count("video")
-)
+
+
+for x in sorted(found):
+
+    print(x)
