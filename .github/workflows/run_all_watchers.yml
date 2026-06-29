@@ -1,36 +1,56 @@
 name: RUN ALL WATCHERS
 
+
 on:
+
   workflow_dispatch:
 
+
+
 concurrency:
+
   group: run-all-watchers
+
   cancel-in-progress: true
 
 
+
+
 permissions:
+
   contents: write
+
+
 
 
 
 jobs:
 
+
   watchers:
+
 
     runs-on: ubuntu-latest
 
 
+
     steps:
+
 
 
       - uses: actions/checkout@v4
 
 
 
+
+
       - uses: actions/setup-python@v5
 
         with:
+
           python-version: "3.12"
+
+
 
 
 
@@ -40,7 +60,9 @@ jobs:
 
           python -m pip install --upgrade pip
 
-          pip install requests beautifulsoup4
+          pip install requests beautifulsoup4 playwright
+
+          playwright install chromium
 
 
 
@@ -51,19 +73,28 @@ jobs:
         id: run
 
 
+
         env:
+
 
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
+
           UNITEDONLINEPLUS_WEBHOOK: ${{ secrets.UNITEDONLINEPLUS_WEBHOOK }}
+
 
           FRONTALE_WEBHOOK: ${{ secrets.FRONTALE_WEBHOOK }}
 
+
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
+
 
           JETS_WEBHOOK: ${{ secrets.JETS_WEBHOOK }}
 
+
           ELGOLAZO_WEBHOOK: ${{ secrets.ELGOLAZO_WEBHOOK }}
+
+
 
 
 
@@ -77,6 +108,7 @@ jobs:
 
 
 
+
           python watch_jef.py
 
           JEF_EXIT=$?
@@ -84,9 +116,14 @@ jobs:
           echo "[jef] exit=$JEF_EXIT"
 
 
+
+
           python watch_united_online_plus.py
+
           UOP_EXIT=$?
+
           echo "[uoplus] exit=$UOP_EXIT"
+
 
 
 
@@ -100,11 +137,13 @@ jobs:
 
 
 
+
           python watch_blackrams.py
 
           BR_EXIT=$?
 
           echo "[blackrams] exit=$BR_EXIT"
+
 
 
 
@@ -118,6 +157,7 @@ jobs:
 
 
 
+
           python watch_elgolazo.py
 
           ELG_EXIT=$?
@@ -127,13 +167,15 @@ jobs:
 
 
 
+
           echo "=== DONE WATCHERS ==="
 
 
 
-          # どれか失敗しても全体成功扱い
+          # 個別失敗は通知対象にするが全体は成功扱い
 
           exit 0
+
 
 
 
@@ -168,6 +210,7 @@ jobs:
 
 
           git push origin main
+
 
 
 
