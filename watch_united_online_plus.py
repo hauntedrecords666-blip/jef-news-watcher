@@ -1,25 +1,31 @@
 import os
 import json
-import time
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-# Playwright（JS対策）
 from playwright.sync_api import sync_playwright
 
-
-BASE_URL = "https://jefunited.co.jp"
-TOP_URL = "https://jefunited.co.jp/my/uoplus/"
+BASE = "https://jefunited.co.jp"
 SEEN_FILE = "seen_united_online_plus.json"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+TARGET_CATEGORIES = [
+    "article",
+    "book",
+    "column",
+    "download",
+    "movieplus",
+    "quickreport",
+    "video"
+]
+
 
 # -------------------------
-# seen管理
+# seen
 # -------------------------
 
 def load_seen():
@@ -36,7 +42,7 @@ def save_seen(seen):
 
 
 # -------------------------
-# HTTP（静的）
+# fetch
 # -------------------------
 
 def fetch_html_requests(url):
@@ -44,10 +50,6 @@ def fetch_html_requests(url):
     r.raise_for_status()
     return r.text
 
-
-# -------------------------
-# HTTP（JSレンダリング）
-# -------------------------
 
 def fetch_html_playwright(url):
     with sync_playwright() as p:
@@ -60,26 +62,48 @@ def fetch_html_playwright(url):
 
 
 # -------------------------
-# HTMLから記事抽出
+# 記事判定（ここが本体）
 # -------------------------
 
-def extract_articles(html):
+def is_article(url: str):
+    if "/my/uoplus/detail/c/" in url:
+        return True
+
+    if "youtu.be" in url:
+        return True
+
+    return False
+
+
+def is_noise(url: str):
+    noise = [
+        "/law",
+        "/term",
+        "/service",
+        "/privacypolicy"
+    ]
+    return any(n in url for n in noise)
+
+
+# -------------------------
+# 抽出
+# -------------------------
+
+def extract_articles(html, base_url):
     soup = BeautifulSoup(html, "html.parser")
 
-    articles = []
+    results = []
     seen = set()
 
     for a in soup.find_all("a", href=True):
         href = a["href"]
+        url = urljoin(base_url, href).split("?")[0]
 
-        if "/my/uoplus/detail/" not in href:
+        if is_noise(url):
             continue
 
-        # ゴミ除外
-        if "/mail/" in href:
+        if not is_article(url):
             continue
-
-        url = urljoin(BASE_URL, href).split("?")[0]
 
         if url in seen:
             continue
@@ -87,59 +111,57 @@ def extract_articles(html):
 
         title = a.get_text(" ", strip=True)
         if not title:
-            parent = a.find_parent()
-            if parent:
-                title = parent.get_text(" ", strip=True)
-
-        if not title:
             title = "UNITED ONLINE PLUS"
 
-        articles.append({
+        results.append({
             "url": url,
             "title": title
         })
 
-    return articles
+    return results
 
 
 # -------------------------
-# 取得本体（自動フォールバック）
+# 全カテゴリ取得
 # -------------------------
 
-def fetch_articles():
-    url = TOP_URL
+def fetch_all_articles():
+    all_articles = []
 
-    html = fetch_html_requests(url)
-    articles = extract_articles(html)
+    for c in TARGET_CATEGORIES:
+        url = f"{BASE}/my/uoplus/list?c={c}"
 
-    # requestsで取れたらそれでOK
-    if len(articles) > 1:
-        return articles
+        html = fetch_html_requests(url)
+        articles = extract_articles(html, url)
 
-    # ダメならJSレンダリング
-    html = fetch_html_playwright(url)
-    articles = extract_articles(html)
+        # JS崩れ対策フォールバック
+        if len(articles) == 0:
+            html = fetch_html_playwright(url)
+            articles = extract_articles(html, url)
 
-    return articles
+        all_articles.extend(articles)
+
+    # 重複排除
+    uniq = {}
+    for a in all_articles:
+        uniq[a["url"]] = a
+
+    return list(uniq.values())
 
 
 # -------------------------
-# Discord送信
+# Discord
 # -------------------------
 
 def send_discord(article):
     webhook = os.environ.get("UNITEDONLINEPLUS_WEBHOOK")
     if not webhook:
-        raise Exception("UNITEDONLINEPLUS_WEBHOOK missing")
+        raise Exception("missing webhook")
 
     requests.post(
         webhook,
         json={
-            "content": (
-                "【UNITED ONLINE PLUS更新】\n"
-                f"{article['title']}\n"
-                f"{article['url']}"
-            )
+            "content": f"【UNITED ONLINE PLUS更新】\n{article['title']}\n{article['url']}"
         },
         timeout=10
     ).raise_for_status()
@@ -155,25 +177,24 @@ def main():
     seen = load_seen()
     print("[SEEN]", len(seen))
 
-    articles = fetch_articles()
+    articles = fetch_all_articles()
     print("[ARTICLES]", len(articles))
 
     new_articles = [a for a in articles if a["url"] not in seen]
     print("[NEW]", len(new_articles))
 
-    # 初回は登録だけ
+    # 初回は登録のみ
     if not seen and new_articles:
-        print("[INIT] register only")
         for a in new_articles:
             seen.add(a["url"])
         save_seen(seen)
         return
 
-    for article in reversed(new_articles):
+    for a in reversed(new_articles):
         try:
-            print("[SEND]", article["title"])
-            send_discord(article)
-            seen.add(article["url"])
+            print("[SEND]", a["title"])
+            send_discord(a)
+            seen.add(a["url"])
         except Exception as e:
             print("[ERROR]", e)
 
