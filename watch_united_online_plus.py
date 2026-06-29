@@ -1,40 +1,103 @@
-from playwright.sync_api import sync_playwright
+import requests
 import json
 
-URL = "https://jefunited.co.jp/my/uoplus/"
+BASE = "https://jefunited.co.jp"
+
+API = BASE + "/my/uoplus/list-api"
+PAGER_API = BASE + "/my/uoplus/list-Pager-api"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json, text/plain, */*",
+    "Referer": BASE + "/my/uoplus/"
+}
 
 
-def find_api_calls():
-    results = []
+def fetch_page(page=1):
+    params = {
+        "page": page
+    }
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+    r = requests.get(
+        API,
+        headers=HEADERS,
+        params=params,
+        timeout=10
+    )
 
-        def on_request(req):
-            # XHR / fetchだけ拾う
-            if req.resource_type in ["xhr", "fetch"]:
-                if "jefunited.co.jp" in req.url:
-                    results.append(req.url)
+    r.raise_for_status()
+    return r.json()
 
-        page.on("request", on_request)
 
-        page.goto(URL, wait_until="networkidle")
-        page.wait_for_timeout(5000)
+def extract_articles(data):
+    articles = []
 
-        browser.close()
+    # 構造ゆらぎ対応
+    candidates = (
+        data.get("articles")
+        or data.get("data")
+        or data.get("result")
+        or []
+    )
+
+    for a in candidates:
+        url = a.get("url") or a.get("link")
+        title = a.get("title") or a.get("name")
+
+        if not url:
+            continue
+
+        if not url.startswith("http"):
+            url = BASE + url
+
+        articles.append({
+            "url": url.split("?")[0],
+            "title": title or "UNTITLED"
+        })
+
+    return articles
+
+
+def fetch_all():
+    all_articles = []
+    page = 1
+
+    while True:
+        data = fetch_page(page)
+        articles = extract_articles(data)
+
+        if not articles:
+            break
+
+        all_articles.extend(articles)
+
+        page += 1
+
+        # 無限ループ防止
+        if page > 20:
+            break
 
     # 重複排除
-    return sorted(set(results))
+    seen = set()
+    result = []
+
+    for a in all_articles:
+        if a["url"] in seen:
+            continue
+        seen.add(a["url"])
+        result.append(a)
+
+    return result
 
 
 def main():
-    print("=== API DISCOVERY START ===")
+    print("=== UO PLUS API SCRAPER ===")
 
-    apis = find_api_calls()
+    articles = fetch_all()
 
-    print("[FOUND ENDPOINTS]")
-    for a in apis:
+    print(f"[ARTICLES] {len(articles)}")
+
+    for a in articles[:20]:
         print(a)
 
     print("=== DONE ===")
