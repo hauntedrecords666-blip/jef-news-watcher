@@ -1,13 +1,10 @@
-import json
-import os
 import requests
+import json
+import re
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-
-BASE_URL = "https://jefunited.co.jp"
-TOP_URL = "https://jefunited.co.jp/my/uoplus/"
-SEEN_FILE = "seen_united_online_plus.json"
+BASE = "https://jefunited.co.jp"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -15,193 +12,101 @@ HEADERS = {
 
 
 # -------------------------
-# seen管理
-# -------------------------
-
-def load_seen():
-    try:
-        with open(SEEN_FILE, encoding="utf-8") as f:
-            return set(json.load(f))
-    except FileNotFoundError:
-        return set()
-
-
-def save_seen(seen):
-    with open(SEEN_FILE, "w", encoding="utf-8") as f:
-        json.dump(sorted(list(seen)), f, ensure_ascii=False, indent=2)
-
-
-# -------------------------
 # HTTP
 # -------------------------
 
-def get_soup(url):
+def get_html(url):
     r = requests.get(url, headers=HEADERS, timeout=10)
     r.raise_for_status()
-    return BeautifulSoup(r.text, "html.parser")
+    return r.text
 
 
 # -------------------------
-# 記事抽出（核心）
+# 方法1: HTML直抽出
 # -------------------------
 
-def extract_articles_from_soup(soup, base_url):
-    articles = []
-    seen_urls = set()
+def extract_from_html(html, base_url):
+    soup = BeautifulSoup(html, "html.parser")
 
-    # aタグ総走査（最も壊れにくい）
+    results = []
+    seen = set()
+
     for a in soup.find_all("a", href=True):
         href = a["href"]
 
-        if not href:
+        if "/my/uoplus/detail/" not in href:
             continue
 
         url = urljoin(base_url, href).split("?")[0]
 
-        # uoplus記事だけ
-        if "/my/uoplus/detail/" not in url:
+        if url in seen:
             continue
+        seen.add(url)
 
-        # ゴミ除外（必要なら追加）
-        if "/detail/c/mail/" in url:
-            continue
-
-        if url in seen_urls:
-            continue
-
-        seen_urls.add(url)
-
-        # タイトル取得（フォールバック付き）
         title = a.get_text(" ", strip=True)
-
-        if not title:
-            parent = a.find_parent()
-            if parent:
-                title = parent.get_text(" ", strip=True)
-
         if not title:
             title = "UNITED ONLINE PLUS"
 
-        articles.append({
+        results.append({
             "url": url,
             "title": title
         })
 
-    return articles
+    return results
 
 
 # -------------------------
-# カテゴリ取得
+# 方法2: JSON埋め込み探索
 # -------------------------
 
-def get_categories():
-    print("[CATEGORY] fetching")
+def extract_from_json(html):
+    # script内のJSONっぽい塊を拾う
+    match = re.findall(r'<script[^>]*>(.*?)</script>', html, re.DOTALL)
 
-    soup = get_soup(TOP_URL)
-
-    categories = set()
-
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-
-        if "/my/uoplus/list?c=" in href:
-            categories.add(urljoin(TOP_URL, href))
-
-    result = sorted(categories)
-
-    print("[CATEGORY]", len(result))
-    for x in result:
-        print(x)
-
-    return result
-
-
-# -------------------------
-# 全記事取得
-# -------------------------
-
-def get_articles():
-    categories = get_categories()
-    all_articles = []
-    global_seen = set()
-
-    for category in categories:
-        print("[LIST]", category)
-
-        soup = get_soup(category)
-        articles = extract_articles_from_soup(soup, BASE_URL)
-
-        for a in articles:
-            if a["url"] in global_seen:
+    for m in match:
+        if "uoplus" in m or "article" in m:
+            try:
+                data = json.loads(m)
+                return data
+            except:
                 continue
-            global_seen.add(a["url"])
-            all_articles.append(a)
 
-    print("[ARTICLES]", len(all_articles))
-    return all_articles
+    return None
 
 
 # -------------------------
-# Discord
+# メイン抽出
 # -------------------------
 
-def send_discord(article):
-    webhook = os.environ.get("UNITEDONLINEPLUS_WEBHOOK")
+def fetch_articles():
+    url = "https://jefunited.co.jp/my/uoplus/list?c=article"
 
-    if not webhook:
-        raise Exception("UNITEDONLINEPLUS_WEBHOOK missing")
+    html = get_html(url)
 
-    requests.post(
-        webhook,
-        json={
-            "content":
-                "【UNITED ONLINE PLUS更新】\n"
-                f"{article['title']}\n"
-                f"{article['url']}"
-        },
-        timeout=10
-    ).raise_for_status()
+    # ① HTMLから
+    articles = extract_from_html(html, BASE)
+
+    if articles:
+        return articles
+
+    # ② JSON探索（失敗したら次へ）
+    json_data = extract_from_json(html)
+    if json_data:
+        print("[INFO] JSON found but parser not mapped")
+
+    # ③ 最終手段（JSページ対策）
+    print("[WARN] falling back needed (likely JS rendered page)")
+
+    return []
 
 
 # -------------------------
-# main
+# テスト
 # -------------------------
-
-def main():
-    print("=== START UNITED ONLINE PLUS ===")
-
-    seen = load_seen()
-    print("[SEEN]", len(seen))
-
-    articles = get_articles()
-
-    new_articles = [
-        a for a in articles
-        if a["url"] not in seen
-    ]
-
-    print("[NEW]", len(new_articles))
-
-    # 初回は登録のみ
-    if not seen and new_articles:
-        print("[INIT] register only")
-        for a in new_articles:
-            seen.add(a["url"])
-        save_seen(seen)
-        return
-
-    for article in reversed(new_articles):
-        try:
-            print("[SEND]", article["title"])
-            send_discord(article)
-            seen.add(article["url"])
-        except Exception as e:
-            print("[ERROR]", e)
-
-    save_seen(seen)
-
-    print("=== DONE UNITED ONLINE PLUS ===")
-
 
 if __name__ == "__main__":
-    main()
+    articles = fetch_articles()
+
+    print("ARTICLES:", len(articles))
+    for a in articles[:10]:
+        print(a)
