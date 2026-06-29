@@ -1,45 +1,44 @@
 from playwright.sync_api import sync_playwright
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+import json
 
-BASE = "https://jefunited.co.jp"
+URL = "https://jefunited.co.jp/my/uoplus/"
 
 
-def fetch_showcase():
-    urls = set()
+def find_api_calls():
+    results = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        page.goto(BASE, wait_until="domcontentloaded")
+        def on_request(req):
+            # XHR / fetchだけ拾う
+            if req.resource_type in ["xhr", "fetch"]:
+                if "jefunited.co.jp" in req.url:
+                    results.append(req.url)
 
-        # ここ重要：networkidleじゃなくDOM後すぐ取る
-        html = page.content()
+        page.on("request", on_request)
+
+        page.goto(URL, wait_until="networkidle")
+        page.wait_for_timeout(5000)
 
         browser.close()
 
-    soup = BeautifulSoup(html, "html.parser")
+    # 重複排除
+    return sorted(set(results))
 
-    showcase = soup.select_one("#showcase")
-    if not showcase:
-        return []
 
-    for item in showcase.select(".swiper-slide"):
-        a = item.find("a")
+def main():
+    print("=== API DISCOVERY START ===")
 
-        if not a:
-            continue
+    apis = find_api_calls()
 
-        # hrefが無い場合もあるので属性総チェック
-        href = a.get("href") or a.get("data-href")
+    print("[FOUND ENDPOINTS]")
+    for a in apis:
+        print(a)
 
-        if not href:
-            continue
+    print("=== DONE ===")
 
-        url = urljoin(BASE, href).split("?")[0]
 
-        if "/matches/" in url or "youtu.be" in url:
-            urls.add(url)
-
-    return sorted(urls)
+if __name__ == "__main__":
+    main()
