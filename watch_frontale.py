@@ -2,6 +2,7 @@ import json
 import os
 import re
 import requests
+
 from bs4 import BeautifulSoup
 
 
@@ -10,25 +11,26 @@ BASE_URL = "https://www.frontale.co.jp"
 
 SEEN_FILE = "seen_frontale.json"
 
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
 
+
 # -------------------------
 # seen管理
 # -------------------------
+
 def load_seen():
 
     try:
-
         with open(
             SEEN_FILE,
             encoding="utf-8"
         ) as f:
 
             return set(json.load(f))
-
 
     except FileNotFoundError:
 
@@ -53,9 +55,66 @@ def save_seen(seen):
 
 
 
+
+
+# -------------------------
+# タイトル取得
+# -------------------------
+
+def get_title(url):
+
+    try:
+
+        r = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=10
+        )
+
+        r.raise_for_status()
+
+
+        soup = BeautifulSoup(
+            r.text,
+            "html.parser"
+        )
+
+
+        title = soup.find("title")
+
+
+        if title:
+
+            text = title.get_text(
+                " ",
+                strip=True
+            )
+
+            return text.replace(
+                " | 川崎フロンターレ",
+                ""
+            )
+
+
+    except Exception as e:
+
+        print(
+            "title error:",
+            url,
+            e
+        )
+
+
+    return "川崎フロンターレ NEWS"
+
+
+
+
+
 # -------------------------
 # 記事取得
 # -------------------------
+
 def get_articles():
 
 
@@ -64,7 +123,6 @@ def get_articles():
         headers=HEADERS,
         timeout=10
     )
-
 
     r.raise_for_status()
 
@@ -81,16 +139,13 @@ def get_articles():
 
 
 
-    links = soup.select(
-        "a[href*='/info/']"
-    )
-
-
-
-    for a in links:
+    for a in soup.select(
+        "a[href]"
+    ):
 
 
         href = a.get("href")
+
 
 
         if not href:
@@ -109,8 +164,9 @@ def get_articles():
 
 
 
+        # フロンターレ記事URLのみ
         if not re.search(
-            r"/info/\d{4}/\d{2}/.*\.html$",
+            r"/info/\d{4}/\d{4}_\d+\.html$",
             url
         ):
 
@@ -124,9 +180,10 @@ def get_articles():
         )
 
 
+
         if not title:
 
-            continue
+            title = get_title(url)
 
 
 
@@ -139,11 +196,12 @@ def get_articles():
 
 
 
-    # 重複排除
+    # URL重複排除
 
     result = []
 
     seen_urls = set()
+
 
 
     for article in articles:
@@ -169,15 +227,20 @@ def get_articles():
 
 
 
+
+
+
 # -------------------------
 # Discord送信
 # -------------------------
+
 def send_discord(article):
 
 
     webhook = os.environ.get(
         "FRONTALE_WEBHOOK"
     )
+
 
 
     if not webhook:
@@ -188,29 +251,38 @@ def send_discord(article):
 
 
 
-    res = requests.post(
+    payload = {
+
+        "content":
+            "【川崎フロンターレNEWS更新】\n"
+            f"{article['title']}\n"
+            f"{article['url']}"
+
+    }
+
+
+
+    r = requests.post(
 
         webhook,
 
-        json={
-            "content":
-                f"【川崎フロンターレNEWS更新】\n"
-                f"{article['title']}\n"
-                f"{article['url']}"
-        },
+        json=payload,
 
         timeout=10
 
     )
 
 
-    res.raise_for_status()
+    r.raise_for_status()
+
+
 
 
 
 # -------------------------
 # main
 # -------------------------
+
 def main():
 
 
@@ -251,18 +323,29 @@ def main():
 
         print(
             "sending:",
-            article["title"]
-        )
-
-
-
-        send_discord(article)
-
-
-
-        seen.add(
+            article["title"],
             article["url"]
         )
+
+
+
+        try:
+
+            send_discord(article)
+
+
+            seen.add(
+                article["url"]
+            )
+
+
+        except Exception as e:
+
+
+            print(
+                "send failed:",
+                e
+            )
 
 
 
@@ -273,6 +356,8 @@ def main():
     print(
         "done"
     )
+
+
 
 
 
