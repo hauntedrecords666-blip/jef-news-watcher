@@ -21,7 +21,7 @@ HEADERS = {
 
 
 # -------------------------
-# seen
+# seen管理
 # -------------------------
 
 def load_seen():
@@ -66,19 +66,25 @@ def save_seen(seen):
 
 
 # -------------------------
-# UO+一覧取得
+# UO+取得
 # -------------------------
 
 def fetch_articles():
 
 
-    print("[LIST] fetching...")
+    print(
+        "[LIST] fetching..."
+    )
 
 
     r = requests.get(
+
         LIST_URL,
+
         headers=HEADERS,
+
         timeout=10
+
     )
 
 
@@ -93,8 +99,11 @@ def fetch_articles():
 
 
     soup = BeautifulSoup(
+
         r.text,
+
         "html.parser"
+
     )
 
 
@@ -103,32 +112,37 @@ def fetch_articles():
 
 
 
-    # UO+新着カード
 
-    for item in soup.select(
-        ".l-plus__item"
+    for a in soup.find_all(
+
+        "a",
+
+        href=True
+
     ):
 
 
-        a = item.find(
-            "a",
-            href=True
+
+        href = a.get(
+
+            "href"
+
         )
-
-
-        if not a:
-
-            continue
-
 
 
 
         url = urljoin(
+
             LIST_URL,
-            a["href"]
+
+            href
+
         ).split("?")[0]
 
 
+
+
+        # UO+詳細ページだけ
 
         if "/my/uoplus/detail/" not in url:
 
@@ -138,10 +152,61 @@ def fetch_articles():
 
 
 
-        title = item.get_text(
-            " ",
-            strip=True
-        )
+        title = ""
+
+
+
+        node = a
+
+
+
+        # 親要素からタイトル取得
+
+        for _ in range(6):
+
+
+            node = node.parent
+
+
+
+            if not node:
+
+                break
+
+
+
+            text = node.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+
+
+            if len(text) > 5:
+
+                title = text
+
+                break
+
+
+
+
+
+        if not title:
+
+
+            title = a.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+
 
 
 
@@ -154,11 +219,17 @@ def fetch_articles():
 
 
         articles.append(
+
             {
+
                 "url": url,
+
                 "title": title
+
             }
+
         )
+
 
 
 
@@ -175,6 +246,7 @@ def fetch_articles():
     for article in articles:
 
 
+
         if article["url"] in exists:
 
             continue
@@ -182,25 +254,38 @@ def fetch_articles():
 
 
         exists.add(
+
             article["url"]
+
         )
 
 
-        result.append(article)
+        result.append(
+
+            article
+
+        )
 
 
 
 
 
     print(
+
         "[LIST] articles:",
+
         len(result)
+
     )
 
 
+
     print(
+
         "[LIST] sample:",
+
         result[:5]
+
     )
 
 
@@ -221,15 +306,31 @@ def send_discord(article):
 
 
     webhook = os.environ.get(
+
         "UNITEDONLINEPLUS_WEBHOOK"
+
     )
 
 
     if not webhook:
 
         raise Exception(
+
             "UNITEDONLINEPLUS_WEBHOOK missing"
+
         )
+
+
+
+
+
+    print(
+
+        "[DISCORD] send:",
+
+        article["title"]
+
+    )
 
 
 
@@ -244,7 +345,9 @@ def send_discord(article):
             "content":
 
                 "【UNITED ONLINE PLUS更新】\n"
+
                 f"{article['title']}\n"
+
                 f"{article['url']}"
 
         },
@@ -256,9 +359,13 @@ def send_discord(article):
 
 
     print(
+
         "[DISCORD]",
+
         res.status_code
+
     )
+
 
 
     res.raise_for_status()
@@ -277,7 +384,9 @@ def main():
 
 
     print(
+
         "=== START UNITED ONLINE PLUS ==="
+
     )
 
 
@@ -287,8 +396,11 @@ def main():
 
 
     print(
+
         "[SEEN]",
+
         len(seen)
+
     )
 
 
@@ -316,8 +428,11 @@ def main():
 
 
     print(
+
         "[NEW]",
+
         len(new_articles)
+
     )
 
 
@@ -332,21 +447,29 @@ def main():
 
 
         print(
+
             "[INIT] skip notification"
+
         )
+
 
 
         for article in new_articles:
 
+
             seen.add(
+
                 article["url"]
+
             )
+
 
 
         save_seen(seen)
 
-        return
 
+
+        return
 
 
 
@@ -359,11 +482,15 @@ def main():
 
         try:
 
+
             send_discord(article)
 
 
+
             seen.add(
+
                 article["url"]
+
             )
 
 
@@ -372,9 +499,13 @@ def main():
 
 
             print(
+
                 "[SEND ERROR]",
+
                 e
+
             )
+
 
 
 
@@ -386,8 +517,11 @@ def main():
 
 
     print(
+
         "=== DONE UNITED ONLINE PLUS ==="
+
     )
+
 
 
 
