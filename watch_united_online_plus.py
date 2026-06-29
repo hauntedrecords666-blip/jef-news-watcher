@@ -1,9 +1,9 @@
 import json
 import os
-import requests
+import re
+import asyncio
 
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from playwright.async_api import async_playwright
 
 
 
@@ -11,14 +11,11 @@ LIST_URL = (
     "https://jefunited.co.jp/my/uoplus/"
 )
 
+
 SEEN_FILE = (
     "seen_united_online_plus.json"
 )
 
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0"
-}
 
 
 
@@ -37,14 +34,14 @@ def load_seen():
             encoding="utf-8"
         ) as f:
 
-            return set(
-                json.load(f)
-            )
+            return set(json.load(f))
 
 
     except FileNotFoundError:
 
         return set()
+
+
 
 
 
@@ -59,9 +56,7 @@ def save_seen(seen):
 
         json.dump(
 
-            sorted(
-                list(seen)
-            ),
+            sorted(list(seen)),
 
             f,
 
@@ -77,45 +72,79 @@ def save_seen(seen):
 
 
 
+
 # -------------------------
-# UO+新着取得
+# ブラウザ取得
 # -------------------------
 
-def fetch_list():
+async def fetch_list():
 
 
     print(
-        "[LIST] fetching..."
+        "[BROWSER] start"
     )
 
 
-    r = requests.get(
 
-        LIST_URL,
-
-        headers=HEADERS,
-
-        timeout=10
-
-    )
+    async with async_playwright() as p:
 
 
-    print(
+        browser = await p.chromium.launch(
 
-        "[LIST] status:",
+            headless=True
 
-        r.status_code
-
-    )
+        )
 
 
-    r.raise_for_status()
+        page = await browser.new_page(
+
+            user_agent=
+            "Mozilla/5.0"
+
+        )
+
+
+
+        await page.goto(
+
+            LIST_URL,
+
+            wait_until="networkidle",
+
+            timeout=30000
+
+        )
+
+
+
+        # JS描画待ち
+
+        await page.wait_for_timeout(
+
+            3000
+
+        )
+
+
+
+        html = await page.content()
+
+
+
+        await browser.close()
+
+
+
+
+
+
+    from bs4 import BeautifulSoup
 
 
 
     soup = BeautifulSoup(
 
-        r.text,
+        html,
 
         "html.parser"
 
@@ -124,6 +153,7 @@ def fetch_list():
 
 
     articles = []
+
 
 
 
@@ -142,7 +172,6 @@ def fetch_list():
         )
 
 
-
         if not href:
 
             continue
@@ -150,34 +179,7 @@ def fetch_list():
 
 
 
-        url = urljoin(
-
-            LIST_URL,
-
-            href
-
-        ).split("?")[0]
-
-
-
-
-
-        # トップ新着の記事だけ
-
-        if "/my/uoplus/detail/" not in url:
-
-            continue
-
-
-
-
-        # 固定ページ除外
-
-        if url.endswith(
-
-            "/detail/c/mail/"
-
-        ):
+        if "/my/uoplus/detail/" not in href:
 
             continue
 
@@ -185,68 +187,40 @@ def fetch_list():
 
 
 
-        title = ""
+        url = (
+
+            "https://jefunited.co.jp"
+
+            + href
+
+            if href.startswith("/")
+
+            else href
+
+        )
 
 
 
-        # 親要素から記事タイトル探索
-
-        node = a
+        url = url.split("?")[0]
 
 
 
-        for _ in range(5):
-
-
-            node = node.parent
 
 
 
-            if not node:
+        title = a.get_text(
 
-                break
+            " ",
 
+            strip=True
 
-
-            text = node.get_text(
-
-                " ",
-
-                strip=True
-
-            )
-
-
-
-            if len(text) >= 5:
-
-
-                title = text
-
-                break
-
-
+        )
 
 
 
         if not title:
 
-
-            title = a.get_text(
-
-                " ",
-
-                strip=True
-
-            )
-
-
-
-
-
-        if not title:
-
-            title = "UNITED ONLINE PLUS"
+            continue
 
 
 
@@ -269,20 +243,17 @@ def fetch_list():
 
 
 
-
-    # 重複排除
-
     result = []
 
     exists = set()
 
 
 
-    for article in articles:
+    for a in articles:
 
 
 
-        if article["url"] in exists:
+        if a["url"] in exists:
 
             continue
 
@@ -290,18 +261,12 @@ def fetch_list():
 
         exists.add(
 
-            article["url"]
+            a["url"]
 
         )
 
 
-
-        result.append(
-
-            article
-
-        )
-
+        result.append(a)
 
 
 
@@ -309,7 +274,7 @@ def fetch_list():
 
     print(
 
-        "[LIST] articles:",
+        "[LIST]",
 
         len(result)
 
@@ -318,9 +283,7 @@ def fetch_list():
 
     print(
 
-        "[LIST] sample:",
-
-        result[:10]
+        result[:5]
 
     )
 
@@ -335,10 +298,14 @@ def fetch_list():
 
 
 # -------------------------
-# Discord通知
+# Discord
 # -------------------------
 
 def send_discord(article):
+
+
+    import requests
+
 
 
     webhook = os.environ.get(
@@ -353,25 +320,15 @@ def send_discord(article):
 
         raise Exception(
 
-            "UNITEDONLINEPLUS_WEBHOOK missing"
+            "missing webhook"
 
         )
 
 
 
 
-    print(
 
-        "[DISCORD] send:",
-
-        article["title"]
-
-    )
-
-
-
-
-    res = requests.post(
+    r = requests.post(
 
         webhook,
 
@@ -393,17 +350,7 @@ def send_discord(article):
 
 
 
-    print(
-
-        "[DISCORD] status:",
-
-        res.status_code
-
-    )
-
-
-
-    res.raise_for_status()
+    r.raise_for_status()
 
 
 
@@ -415,7 +362,7 @@ def send_discord(article):
 # main
 # -------------------------
 
-def main():
+async def main():
 
 
     print(
@@ -425,14 +372,13 @@ def main():
     )
 
 
-
     seen = load_seen()
 
 
 
     print(
 
-        "[SEEN] size:",
+        "[SEEN]",
 
         len(seen)
 
@@ -440,9 +386,7 @@ def main():
 
 
 
-
-
-    articles = fetch_list()
+    articles = await fetch_list()
 
 
 
@@ -464,7 +408,7 @@ def main():
 
     print(
 
-        "[NEW]:",
+        "[NEW]",
 
         len(new_articles)
 
@@ -476,35 +420,29 @@ def main():
 
 
 
-    # 初回登録
-
     if not seen and new_articles:
 
 
         print(
 
-            "[INIT] skip notification"
+            "[INIT] skip"
 
         )
 
 
-
-        for article in new_articles:
-
+        for a in new_articles:
 
             seen.add(
 
-                article["url"]
+                a["url"]
 
             )
 
 
-
         save_seen(seen)
 
-
-
         return
+
 
 
 
@@ -515,12 +453,10 @@ def main():
     for article in reversed(new_articles):
 
 
-
         try:
 
 
             send_discord(article)
-
 
 
             seen.add(
@@ -547,8 +483,6 @@ def main():
 
 
 
-
-
     save_seen(seen)
 
 
@@ -564,8 +498,7 @@ def main():
 
 
 
-
 if __name__ == "__main__":
 
 
-    main()
+    asyncio.run(main())
