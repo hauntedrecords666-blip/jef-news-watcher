@@ -48,8 +48,6 @@ def load_seen():
 
 
 
-
-
 def save_seen(seen):
 
     with open(
@@ -79,9 +77,8 @@ def save_seen(seen):
 
 
 
-
 # -------------------------
-# 一覧取得
+# UO+新着取得
 # -------------------------
 
 def fetch_list():
@@ -130,51 +127,15 @@ def fetch_list():
 
 
 
+    for a in soup.select(
 
-    # UO+カード
+        "a[href]"
 
-    items = soup.select(
-
-        ".l-plus__item"
-
-    )
+    ):
 
 
 
-    print(
-
-        "[LIST] cards:",
-
-        len(items)
-
-    )
-
-
-
-
-
-    for item in items:
-
-
-
-        link = item.find(
-
-            "a",
-
-            href=True
-
-        )
-
-
-
-        if not link:
-
-            continue
-
-
-
-
-        href = link.get(
+        href = a.get(
 
             "href"
 
@@ -182,7 +143,7 @@ def fetch_list():
 
 
 
-        if "/my/uoplus/detail/" not in href:
+        if not href:
 
             continue
 
@@ -201,6 +162,14 @@ def fetch_list():
 
 
 
+        # トップ新着の記事だけ
+
+        if "/my/uoplus/detail/" not in url:
+
+            continue
+
+
+
 
         # 固定ページ除外
 
@@ -216,20 +185,68 @@ def fetch_list():
 
 
 
+        title = ""
 
-        title = item.get_text(
 
-            " ",
 
-            strip=True
+        # 親要素から記事タイトル探索
 
-        )
+        node = a
+
+
+
+        for _ in range(5):
+
+
+            node = node.parent
+
+
+
+            if not node:
+
+                break
+
+
+
+            text = node.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+
+
+            if len(text) >= 5:
+
+
+                title = text
+
+                break
+
+
 
 
 
         if not title:
 
-            continue
+
+            title = a.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
+
+
+
+
+        if not title:
+
+            title = "UNITED ONLINE PLUS"
 
 
 
@@ -278,11 +295,13 @@ def fetch_list():
         )
 
 
+
         result.append(
 
             article
 
         )
+
 
 
 
@@ -297,12 +316,11 @@ def fetch_list():
     )
 
 
-
     print(
 
         "[LIST] sample:",
 
-        result[:5]
+        result[:10]
 
     )
 
@@ -316,9 +334,8 @@ def fetch_list():
 
 
 
-
 # -------------------------
-# Discord送信
+# Discord通知
 # -------------------------
 
 def send_discord(article):
@@ -339,7 +356,6 @@ def send_discord(article):
             "UNITEDONLINEPLUS_WEBHOOK missing"
 
         )
-
 
 
 
@@ -388,7 +404,6 @@ def send_discord(article):
 
 
     res.raise_for_status()
-
 
 
 
@@ -454,6 +469,7 @@ def main():
         len(new_articles)
 
     )
+
 
 
 
@@ -532,6 +548,7 @@ def main():
 
 
 
+
     save_seen(seen)
 
 
@@ -547,6 +564,8 @@ def main():
 
 
 
+
 if __name__ == "__main__":
+
 
     main()
