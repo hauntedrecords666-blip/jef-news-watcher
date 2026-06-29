@@ -57,7 +57,7 @@ jobs:
 
           UNITEDONLINEPLUS_WEBHOOK: ${{ secrets.UNITEDONLINEPLUS_WEBHOOK }}
 
-          FRONTALE_WEBHOOK: ${{ secrets.FRONTAALE_WEBHOOK }}
+          FRONTALE_WEBHOOK: ${{ secrets.FRONTALE_WEBHOOK }}
 
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
 
