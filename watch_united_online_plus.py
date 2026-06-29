@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import requests
 
 from bs4 import BeautifulSoup
@@ -24,10 +25,6 @@ HEADERS = {
 
 
 
-
-# -------------------------
-# seen
-# -------------------------
 
 def load_seen():
 
@@ -70,68 +67,35 @@ def save_seen(seen):
 
 
 
-# -------------------------
-# HTML取得
-# -------------------------
-
 def fetch_html(url):
 
-    print(
-        "[FETCH]",
-        url
-    )
-
-
     r = requests.get(
-
         url,
-
         headers=HEADERS,
-
         timeout=10
-
     )
-
-
-    print(
-        "[STATUS]",
-        r.status_code
-    )
-
 
     r.raise_for_status()
 
-
-    return BeautifulSoup(
-
-        r.text,
-
-        "html.parser"
-
-    )
+    return r.text
 
 
 
 
 
 
-
-# -------------------------
-# カテゴリ取得
-# -------------------------
 
 def fetch_category_urls():
 
 
-    print(
-        "[CATEGORY] fetching"
+    html = fetch_html(
+        TOP_URL
     )
 
 
-    soup = fetch_html(
-
-        TOP_URL
-
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
     )
 
 
@@ -140,66 +104,27 @@ def fetch_category_urls():
 
 
     for a in soup.find_all(
-
         "a",
-
         href=True
-
     ):
 
 
-        url = urljoin(
-
-            TOP_URL,
-
-            a["href"]
-
-        ).split("?")[0]
+        href = a["href"]
 
 
-
-        # list?c=xxxだけ
-
-        if "/my/uoplus/list" in a["href"]:
+        if "/my/uoplus/list?c=" in href:
 
 
             urls.add(
-
                 urljoin(
                     TOP_URL,
-                    a["href"]
+                    href
                 )
-
             )
 
 
 
-
-
-    result = sorted(
-
-        urls
-
-    )
-
-
-    print(
-
-        "[CATEGORY]",
-
-        len(result)
-
-    )
-
-
-    for x in result:
-
-        print(
-            x
-        )
-
-
-    return result
+    return sorted(urls)
 
 
 
@@ -207,9 +132,7 @@ def fetch_category_urls():
 
 
 
-# -------------------------
-# 記事取得
-# -------------------------
+
 
 def fetch_articles():
 
@@ -217,7 +140,15 @@ def fetch_articles():
     articles = []
 
 
+
     categories = fetch_category_urls()
+
+
+
+    print(
+        "[CATEGORY]",
+        len(categories)
+    )
 
 
 
@@ -225,128 +156,71 @@ def fetch_articles():
 
 
         print(
-
             "[LIST]",
-
             category
+        )
+
+
+        html = fetch_html(
+            category
+        )
+
+
+        soup = BeautifulSoup(
+            html,
+            "html.parser"
+        )
+
+
+
+        # 全HTMLからdetail URL抽出
+
+        matches = re.findall(
+
+            r'(?:"|\'|=)([^"\']*detail[^"\']+)',
+
+            html
 
         )
 
 
-        soup = fetch_html(
 
-            category
+        for m in matches:
 
-        )
 
+            url = urljoin(
+                category,
+                m
+            )
 
 
 
-        # 全タグ探索
+            if "/my/uoplus/detail/" not in url:
 
-        for tag in soup.find_all(True):
+                continue
 
 
-            for attr in [
 
-                "href",
+            if url.endswith(
+                "/detail/c/mail/"
+            ):
 
-                "data-href",
+                continue
 
-                "data-url"
 
-            ]:
 
+            articles.append(
 
-                value = tag.get(attr)
+                {
+                    "url": url.split("?")[0],
+                    "title": ""
+                }
 
+            )
 
 
-                if not value:
 
-                    continue
 
-
-
-
-                url = urljoin(
-
-                    category,
-
-                    value
-
-                ).split("?")[0]
-
-
-
-
-
-                if "/my/uoplus/detail/" not in url:
-
-                    continue
-
-
-
-
-                # メルマガ除外
-
-                if url.endswith(
-
-                    "/detail/c/mail/"
-
-                ):
-
-                    continue
-
-
-
-
-
-
-                title = tag.get_text(
-
-                    " ",
-
-                    strip=True
-
-                )
-
-
-
-                if not title:
-
-
-                    title = (
-
-                        "UNITED ONLINE PLUS"
-
-                    )
-
-
-
-
-
-
-                articles.append(
-
-                    {
-
-                        "url": url,
-
-                        "title": title
-
-                    }
-
-                )
-
-
-
-
-
-
-
-
-    # URL重複排除
 
     result = []
 
@@ -354,45 +228,34 @@ def fetch_articles():
 
 
 
-    for article in articles:
+    for a in articles:
 
 
-        if article["url"] in exists:
+        if a["url"] in exists:
 
             continue
 
 
 
         exists.add(
-
-            article["url"]
-
+            a["url"]
         )
 
 
-        result.append(
-
-            article
-
-        )
+        result.append(a)
 
 
 
 
 
     print(
-
         "[ARTICLES]",
-
         len(result)
-
     )
 
 
     print(
-
         result[:10]
-
     )
 
 
@@ -404,31 +267,65 @@ def fetch_articles():
 
 
 
-# -------------------------
-# Discord
-# -------------------------
+def fetch_title(url):
+
+    try:
+
+        html = fetch_html(
+            url
+        )
+
+
+        soup = BeautifulSoup(
+            html,
+            "html.parser"
+        )
+
+
+        h1 = soup.find("h1")
+
+
+        if h1:
+
+            return h1.get_text(
+                " ",
+                strip=True
+            )
+
+
+        title = soup.find(
+            "title"
+        )
+
+
+        if title:
+
+            return title.get_text(
+                " ",
+                strip=True
+            )
+
+
+    except:
+
+        pass
+
+
+
+    return "UNITED ONLINE PLUS"
+
+
+
+
+
+
 
 def send_discord(article):
 
 
     webhook = os.environ.get(
-
         "UNITEDONLINEPLUS_WEBHOOK"
-
     )
-
-
-    if not webhook:
-
-
-        raise Exception(
-
-            "UNITEDONLINEPLUS_WEBHOOK missing"
-
-        )
-
-
-
 
 
     r = requests.post(
@@ -440,9 +337,7 @@ def send_discord(article):
             "content":
 
                 "【UNITED ONLINE PLUS更新】\n"
-
                 f"{article['title']}\n"
-
                 f"{article['url']}"
 
         },
@@ -460,38 +355,37 @@ def send_discord(article):
 
 
 
-# -------------------------
-# main
-# -------------------------
 
 def main():
 
 
     print(
-
         "=== START UNITED ONLINE PLUS ==="
-
     )
-
 
 
     seen = load_seen()
 
 
-
     print(
-
         "[SEEN]",
-
         len(seen)
-
     )
 
 
 
-
-
     articles = fetch_articles()
+
+
+
+    for a in articles:
+
+        if not a["title"]:
+
+            a["title"] = fetch_title(
+                a["url"]
+            )
+
 
 
 
@@ -508,41 +402,23 @@ def main():
 
 
 
-
-
     print(
-
         "[NEW]",
-
         len(new_articles)
-
     )
 
 
 
 
 
-
-    # 初回登録
-
     if not seen and new_articles:
-
-
-        print(
-
-            "[INIT] register"
-
-        )
 
 
         for a in new_articles:
 
             seen.add(
-
                 a["url"]
-
             )
-
 
 
         save_seen(seen)
@@ -554,45 +430,14 @@ def main():
 
 
 
-    for article in reversed(new_articles):
+    for a in reversed(new_articles):
 
 
-        try:
+        send_discord(a)
 
-
-            print(
-
-                "[SEND]",
-
-                article["title"]
-
-            )
-
-
-            send_discord(article)
-
-
-
-            seen.add(
-
-                article["url"]
-
-            )
-
-
-
-        except Exception as e:
-
-
-            print(
-
-                "[ERROR]",
-
-                e
-
-            )
-
-
+        seen.add(
+            a["url"]
+        )
 
 
 
@@ -603,9 +448,7 @@ def main():
 
 
     print(
-
         "=== DONE UNITED ONLINE PLUS ==="
-
     )
 
 
@@ -614,6 +457,5 @@ def main():
 
 
 if __name__ == "__main__":
-
 
     main()
