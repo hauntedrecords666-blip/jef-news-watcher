@@ -7,11 +7,13 @@ from urllib.parse import urljoin
 
 
 
-LIST_URL = "https://jefunited.co.jp/my/uoplus/"
+LIST_URL = (
+    "https://jefunited.co.jp/my/uoplus/"
+)
 
-BASE_URL = "https://jefunited.co.jp"
-
-SEEN_FILE = "seen_united_online_plus.json"
+SEEN_FILE = (
+    "seen_united_online_plus.json"
+)
 
 
 HEADERS = {
@@ -35,12 +37,16 @@ def load_seen():
             encoding="utf-8"
         ) as f:
 
-            return set(json.load(f))
+            return set(
+                json.load(f)
+            )
 
 
     except FileNotFoundError:
 
         return set()
+
+
 
 
 
@@ -55,7 +61,9 @@ def save_seen(seen):
 
         json.dump(
 
-            sorted(list(seen)),
+            sorted(
+                list(seen)
+            ),
 
             f,
 
@@ -78,7 +86,9 @@ def save_seen(seen):
 def fetch_list():
 
 
-    print("[LIST] fetching...")
+    print(
+        "[LIST] fetching..."
+    )
 
 
     r = requests.get(
@@ -93,8 +103,11 @@ def fetch_list():
 
 
     print(
+
         "[LIST] status:",
+
         r.status_code
+
     )
 
 
@@ -117,13 +130,17 @@ def fetch_list():
 
 
     for a in soup.select(
+
         "a[href]"
+
     ):
 
 
 
         href = a.get(
+
             "href"
+
         )
 
 
@@ -131,6 +148,7 @@ def fetch_list():
         if not href:
 
             continue
+
 
 
 
@@ -144,28 +162,92 @@ def fetch_list():
 
 
 
-        # UO+記事っぽいURLのみ
-        # 実際のURL確認用に広め
-
-        if "/my/uoplus/" not in url:
-
-            continue
 
 
+        # UO+記事のみ
 
-        if url == LIST_URL:
+        if "/my/uoplus/detail/" not in url:
 
             continue
 
 
 
-        title = a.get_text(
 
-            " ",
 
-            strip=True
+        title_parts = []
+
+
+
+        h3 = a.select_one(
+
+            "h3"
 
         )
+
+
+
+        h2 = a.select_one(
+
+            "h2"
+
+        )
+
+
+
+
+
+        if h3:
+
+            title_parts.append(
+
+                h3.get_text(
+
+                    " ",
+
+                    strip=True
+
+                )
+
+            )
+
+
+
+        if h2:
+
+            title_parts.append(
+
+                h2.get_text(
+
+                    " ",
+
+                    strip=True
+
+                )
+
+            )
+
+
+
+
+        title = " ".join(
+
+            title_parts
+
+        )
+
+
+
+        if not title:
+
+
+            title = a.get_text(
+
+                " ",
+
+                strip=True
+
+            )
+
 
 
 
@@ -183,29 +265,41 @@ def fetch_list():
 
 
 
+
+
+
+
+    # URL重複排除
+
     result = []
 
-    seen_urls = set()
+    exists = set()
 
 
 
-    for a in articles:
+    for article in articles:
 
 
-        if a["url"] in seen_urls:
+
+        if article["url"] in exists:
 
             continue
 
 
 
-        seen_urls.add(
+        exists.add(
 
-            a["url"]
+            article["url"]
 
         )
 
 
-        result.append(a)
+        result.append(
+
+            article
+
+        )
+
 
 
 
@@ -223,7 +317,7 @@ def fetch_list():
 
         "[LIST] sample:",
 
-        result[:3]
+        result[:5]
 
     )
 
@@ -261,6 +355,8 @@ def send_discord(article):
 
 
 
+
+
     print(
 
         "[DISCORD] send:",
@@ -268,6 +364,7 @@ def send_discord(article):
         article["url"]
 
     )
+
 
 
 
@@ -302,6 +399,7 @@ def send_discord(article):
     )
 
 
+
     r.raise_for_status()
 
 
@@ -319,7 +417,7 @@ def main():
 
     print(
 
-        "=== START UO+ ==="
+        "=== START UNITED ONLINE PLUS ==="
 
     )
 
@@ -339,7 +437,11 @@ def main():
 
 
 
+
+
     articles = fetch_list()
+
+
 
 
 
@@ -355,9 +457,11 @@ def main():
 
 
 
+
+
     print(
 
-        "[NEW]",
+        "[NEW]:",
 
         len(new_articles)
 
@@ -367,30 +471,34 @@ def main():
 
 
 
-    # 初回は通知しない
+
+
+    # 初回登録のみ
 
     if not seen and new_articles:
 
 
         print(
 
-            "[INIT] skip"
+            "[INIT] skip notification"
 
         )
 
 
-        for a in new_articles:
+        for article in new_articles:
 
             seen.add(
 
-                a["url"]
+                article["url"]
 
             )
 
 
         save_seen(seen)
 
+
         return
+
 
 
 
@@ -420,11 +528,14 @@ def main():
 
             print(
 
-                "send error:",
+                "[SEND ERROR]",
 
                 e
 
             )
+
+
+
 
 
 
@@ -435,7 +546,7 @@ def main():
 
     print(
 
-        "=== DONE UO+ ==="
+        "=== DONE UNITED ONLINE PLUS ==="
 
     )
 
