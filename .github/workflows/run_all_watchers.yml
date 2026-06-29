@@ -55,6 +55,8 @@ jobs:
 
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
+          UNITEDONLINEPLUS_WEBHOOK: ${{ secrets.UNITEDONLINEPLUS_WEBHOOK }}
+
           FRONTALE_WEBHOOK: ${{ secrets.FRONTAALE_WEBHOOK }}
 
           BLACKRAMS_WEBHOOK: ${{ secrets.BLACKRAMS_WEBHOOK }}
