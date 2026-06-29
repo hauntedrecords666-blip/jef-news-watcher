@@ -3,6 +3,8 @@ import os
 import re
 import requests
 
+from datetime import datetime, timezone, timedelta
+
 from bs4 import BeautifulSoup
 
 
@@ -26,6 +28,77 @@ HEADERS = {
 
 
 # -------------------------
+# 実行時間チェック
+# -------------------------
+
+def should_run():
+
+
+    # UTC → JST
+
+    now = datetime.now(
+        timezone.utc
+    ) + timedelta(
+        hours=9
+    )
+
+
+    # 月曜=0
+    # 火曜=1
+    # 木曜=3
+    # 日曜=6
+
+    if now.weekday() not in [
+        1,
+        3,
+        6
+    ]:
+
+        return False
+
+
+
+    # 22:31〜22:45のみ
+
+    minutes = (
+        now.hour * 60
+        + now.minute
+    )
+
+
+    start = (
+        22 * 60
+        + 31
+    )
+
+
+    end = (
+        22 * 60
+        + 45
+    )
+
+
+
+    if minutes < start:
+
+        return False
+
+
+    if minutes > end:
+
+        return False
+
+
+
+    return True
+
+
+
+
+
+
+
+# -------------------------
 # seen管理
 # -------------------------
 
@@ -38,12 +111,16 @@ def load_seen():
             encoding="utf-8"
         ) as f:
 
-            return set(json.load(f))
+            return set(
+                json.load(f)
+            )
 
 
     except FileNotFoundError:
 
         return set()
+
+
 
 
 
@@ -55,11 +132,19 @@ def save_seen(seen):
         encoding="utf-8"
     ) as f:
 
+
         json.dump(
-            sorted(list(seen)),
+
+            sorted(
+                list(seen)
+            ),
+
             f,
+
             ensure_ascii=False,
+
             indent=2
+
         )
 
 
@@ -90,12 +175,17 @@ def send_discord(item):
 
     payload = {
 
+
         "content":
+
             "【EL GOLAZO 新着】\n"
+
             f"{item['title']}\n"
+
             f"{item['url']}"
 
     }
+
 
 
 
@@ -119,7 +209,7 @@ def send_discord(item):
 
 
 # -------------------------
-# 商品詳細タイトル取得
+# 商品タイトル取得
 # -------------------------
 
 def get_title(url):
@@ -152,7 +242,9 @@ def get_title(url):
 
 
 
-        title = soup.find("title")
+        title = soup.find(
+            "title"
+        )
 
 
 
@@ -175,8 +267,6 @@ def get_title(url):
 
             "title error:",
 
-            url,
-
             e
 
         )
@@ -197,7 +287,6 @@ def get_title(url):
 # -------------------------
 
 def get_products():
-
 
 
     r = requests.get(
@@ -238,7 +327,9 @@ def get_products():
 
 
 
-        href = a.get("href")
+        href = a.get(
+            "href"
+        )
 
 
 
@@ -261,7 +352,7 @@ def get_products():
 
 
 
-        # 商品詳細URL
+        # 商品詳細URLのみ
 
         if not re.search(
 
@@ -289,7 +380,10 @@ def get_products():
 
         if not title:
 
-            title = get_title(url)
+
+            title = get_title(
+                url
+            )
 
 
 
@@ -312,7 +406,7 @@ def get_products():
 
 
 
-    # URL重複排除
+    # 重複排除
 
     result = []
 
@@ -323,7 +417,6 @@ def get_products():
     for p in products:
 
 
-
         if p["url"] in exists:
 
             continue
@@ -331,15 +424,13 @@ def get_products():
 
 
         exists.add(
-
             p["url"]
-
         )
 
 
-
-        result.append(p)
-
+        result.append(
+            p
+        )
 
 
 
@@ -359,12 +450,27 @@ def main():
 
 
 
+    if not should_run():
+
+
+        print(
+
+            "skip: not elgolazo time"
+
+        )
+
+
+        return
+
+
+
+
+
     seen = load_seen()
 
 
 
     products = get_products()
-
 
 
 
@@ -375,6 +481,7 @@ def main():
         len(products)
 
     )
+
 
 
 
@@ -400,6 +507,7 @@ def main():
         len(new_products)
 
     )
+
 
 
 
@@ -438,7 +546,6 @@ def main():
 
 
         except Exception as e:
-
 
 
             print(
