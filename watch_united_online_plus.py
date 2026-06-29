@@ -7,22 +7,13 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 
-BASE_URL = "https://jefunited.co.jp"
+TOP_URL = "https://jefunited.co.jp/my/uoplus/"
 
-TOP_URL = (
-    "https://jefunited.co.jp/my/uoplus/"
-)
-
-SEEN_FILE = (
-    "seen_united_online_plus.json"
-)
-
+SEEN_FILE = "seen_united_online_plus.json"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
-
-
 
 
 
@@ -37,12 +28,9 @@ def load_seen():
 
             return set(json.load(f))
 
-
     except FileNotFoundError:
 
         return set()
-
-
 
 
 
@@ -65,9 +53,7 @@ def save_seen(seen):
 
 
 
-
-
-def fetch_html(url):
+def get_soup(url):
 
     r = requests.get(
         url,
@@ -77,30 +63,20 @@ def fetch_html(url):
 
     r.raise_for_status()
 
-    return r.text
-
-
-
-
-
-
-
-def fetch_category_urls():
-
-
-    html = fetch_html(
-        TOP_URL
-    )
-
-
-    soup = BeautifulSoup(
-        html,
+    return BeautifulSoup(
+        r.text,
         "html.parser"
     )
 
 
-    urls = set()
 
+
+
+def get_categories():
+
+    soup = get_soup(TOP_URL)
+
+    result = set()
 
 
     for a in soup.find_all(
@@ -108,14 +84,12 @@ def fetch_category_urls():
         href=True
     ):
 
-
         href = a["href"]
 
 
         if "/my/uoplus/list?c=" in href:
 
-
-            urls.add(
+            result.add(
                 urljoin(
                     TOP_URL,
                     href
@@ -123,36 +97,19 @@ def fetch_category_urls():
             )
 
 
-
-    return sorted(urls)
-
+    return list(result)
 
 
 
 
 
-
-
-
-def fetch_articles():
+def get_articles():
 
 
     articles = []
 
 
-
-    categories = fetch_category_urls()
-
-
-
-    print(
-        "[CATEGORY]",
-        len(categories)
-    )
-
-
-
-    for category in categories:
+    for category in get_categories():
 
 
         print(
@@ -161,64 +118,71 @@ def fetch_articles():
         )
 
 
-        html = fetch_html(
-            category
-        )
+        soup = get_soup(category)
 
 
-        soup = BeautifulSoup(
-            html,
-            "html.parser"
-        )
-
-
-
-        # 全HTMLからdetail URL抽出
-
-        matches = re.findall(
-
-            r'(?:"|\'|=)([^"\']*detail[^"\']+)',
-
-            html
-
-        )
-
-
-
-        for m in matches:
+        for a in soup.find_all(
+            "a",
+            href=True
+        ):
 
 
             url = urljoin(
                 category,
-                m
+                a["href"]
             )
 
 
-
-            if "/my/uoplus/detail/" not in url:
-
-                continue
+            url = url.split("?")[0]
 
 
 
-            if url.endswith(
-                "/detail/c/mail/"
+            # UO+内ページだけ
+
+            if not url.startswith(
+                "https://jefunited.co.jp/my/uoplus/"
             ):
 
                 continue
 
 
 
-            articles.append(
+            # 一覧/固定ページ除外
 
-                {
-                    "url": url.split("?")[0],
-                    "title": ""
-                }
+            if "/list" in url:
 
+                continue
+
+
+            if url.endswith(
+                "/my/uoplus/"
+            ):
+
+                continue
+
+
+            if url.endswith(
+                "/my/uoplus/about"
+            ):
+
+                continue
+
+
+
+
+            title = a.get_text(
+                " ",
+                strip=True
             )
 
 
+
+            articles.append(
+                {
+                    "url": url,
+                    "title": title
+                }
+            )
 
 
 
@@ -227,25 +191,18 @@ def fetch_articles():
     exists = set()
 
 
-
     for a in articles:
-
 
         if a["url"] in exists:
 
             continue
 
 
-
         exists.add(
             a["url"]
         )
 
-
         result.append(a)
-
-
-
 
 
     print(
@@ -265,70 +222,14 @@ def fetch_articles():
 
 
 
-
-
-def fetch_title(url):
-
-    try:
-
-        html = fetch_html(
-            url
-        )
-
-
-        soup = BeautifulSoup(
-            html,
-            "html.parser"
-        )
-
-
-        h1 = soup.find("h1")
-
-
-        if h1:
-
-            return h1.get_text(
-                " ",
-                strip=True
-            )
-
-
-        title = soup.find(
-            "title"
-        )
-
-
-        if title:
-
-            return title.get_text(
-                " ",
-                strip=True
-            )
-
-
-    except:
-
-        pass
-
-
-
-    return "UNITED ONLINE PLUS"
-
-
-
-
-
-
-
 def send_discord(article):
-
 
     webhook = os.environ.get(
         "UNITEDONLINEPLUS_WEBHOOK"
     )
 
 
-    r = requests.post(
+    requests.post(
 
         webhook,
 
@@ -336,28 +237,21 @@ def send_discord(article):
 
             "content":
 
-                "【UNITED ONLINE PLUS更新】\n"
-                f"{article['title']}\n"
-                f"{article['url']}"
+            "【UNITED ONLINE PLUS更新】\n"
+            f"{article['title']}\n"
+            f"{article['url']}"
 
         },
 
         timeout=10
 
-    )
-
-
-    r.raise_for_status()
-
-
-
+    ).raise_for_status()
 
 
 
 
 
 def main():
-
 
     print(
         "=== START UNITED ONLINE PLUS ==="
@@ -367,59 +261,32 @@ def main():
     seen = load_seen()
 
 
-    print(
-        "[SEEN]",
-        len(seen)
-    )
+    articles = get_articles()
 
 
+    new = [
 
-    articles = fetch_articles()
-
-
-
-    for a in articles:
-
-        if not a["title"]:
-
-            a["title"] = fetch_title(
-                a["url"]
-            )
-
-
-
-
-
-    new_articles = [
-
-        a
-
-        for a in articles
+        a for a in articles
 
         if a["url"] not in seen
 
     ]
 
 
-
     print(
         "[NEW]",
-        len(new_articles)
+        len(new)
     )
 
 
 
+    if not seen:
 
-
-    if not seen and new_articles:
-
-
-        for a in new_articles:
+        for a in articles:
 
             seen.add(
                 a["url"]
             )
-
 
         save_seen(seen)
 
@@ -427,11 +294,7 @@ def main():
 
 
 
-
-
-
-    for a in reversed(new_articles):
-
+    for a in reversed(new):
 
         send_discord(a)
 
@@ -440,18 +303,12 @@ def main():
         )
 
 
-
-
-
     save_seen(seen)
-
 
 
     print(
         "=== DONE UNITED ONLINE PLUS ==="
     )
-
-
 
 
 
