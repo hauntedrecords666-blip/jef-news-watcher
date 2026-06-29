@@ -84,6 +84,11 @@ jobs:
           echo "[jef] exit=$JEF_EXIT"
 
 
+          python watch_united_online_plus.py
+          UOP_EXIT=$?
+          echo "[uoplus] exit=$UOP_EXIT"
+
+
 
 
           python watch_frontale.py
