@@ -79,6 +79,7 @@ def save_seen(seen):
 
 
 
+
 # -------------------------
 # 一覧取得
 # -------------------------
@@ -89,6 +90,7 @@ def fetch_list():
     print(
         "[LIST] fetching..."
     )
+
 
 
     r = requests.get(
@@ -129,26 +131,18 @@ def fetch_list():
 
 
 
-    for a in soup.select(
 
-        "a[href]"
+    for a in soup.find_all(
+
+        "a",
+
+        href=True
 
     ):
 
 
 
-        href = a.get(
-
-            "href"
-
-        )
-
-
-
-        if not href:
-
-            continue
-
+        href = a["href"]
 
 
 
@@ -164,7 +158,7 @@ def fetch_list():
 
 
 
-        # UO+記事のみ
+        # UO+詳細だけ
 
         if "/my/uoplus/detail/" not in url:
 
@@ -173,65 +167,25 @@ def fetch_list():
 
 
 
+        # 固定ページ除外
 
-        title_parts = []
+        if url.endswith(
 
+            "/detail/c/mail/"
 
+        ):
 
-        h3 = a.select_one(
-
-            "h3"
-
-        )
-
-
-
-        h2 = a.select_one(
-
-            "h2"
-
-        )
+            continue
 
 
 
 
 
-        if h3:
+        title = a.get_text(
 
-            title_parts.append(
+            " ",
 
-                h3.get_text(
-
-                    " ",
-
-                    strip=True
-
-                )
-
-            )
-
-
-
-        if h2:
-
-            title_parts.append(
-
-                h2.get_text(
-
-                    " ",
-
-                    strip=True
-
-                )
-
-            )
-
-
-
-
-        title = " ".join(
-
-            title_parts
+            strip=True
 
         )
 
@@ -239,14 +193,8 @@ def fetch_list():
 
         if not title:
 
+            continue
 
-            title = a.get_text(
-
-                " ",
-
-                strip=True
-
-            )
 
 
 
@@ -294,6 +242,7 @@ def fetch_list():
         )
 
 
+
         result.append(
 
             article
@@ -313,6 +262,7 @@ def fetch_list():
     )
 
 
+
     print(
 
         "[LIST] sample:",
@@ -324,6 +274,7 @@ def fetch_list():
 
 
     return result
+
 
 
 
@@ -345,6 +296,7 @@ def send_discord(article):
     )
 
 
+
     if not webhook:
 
         raise Exception(
@@ -361,9 +313,10 @@ def send_discord(article):
 
         "[DISCORD] send:",
 
-        article["url"]
+        article["title"]
 
     )
+
 
 
 
@@ -401,6 +354,7 @@ def send_discord(article):
 
 
     r.raise_for_status()
+
 
 
 
@@ -472,10 +426,10 @@ def main():
 
 
 
-
-    # 初回登録のみ
+    # 初回登録
 
     if not seen and new_articles:
+
 
 
         print(
@@ -485,7 +439,9 @@ def main():
         )
 
 
+
         for article in new_articles:
+
 
             seen.add(
 
@@ -494,7 +450,9 @@ def main():
             )
 
 
+
         save_seen(seen)
+
 
 
         return
@@ -505,7 +463,9 @@ def main():
 
 
 
+
     for article in reversed(new_articles):
+
 
 
         try:
@@ -524,6 +484,7 @@ def main():
 
 
         except Exception as e:
+
 
 
             print(
